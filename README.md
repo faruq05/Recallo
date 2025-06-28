@@ -1,8 +1,8 @@
-#setup frontend
+# setup frontend
 cd frontend
 npm i
 
-#setup backend .env
+# setup backend .env
 then cd ..
 cd backend
 .env
