@@ -22,6 +22,6 @@ Go to home directory
 Select interpreter from vs code
 select .venv as new interpreter
 
-lastly run by 
+#lastly run by 
 cd frontend
 npm run dev
