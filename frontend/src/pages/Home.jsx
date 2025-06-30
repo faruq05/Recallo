@@ -23,7 +23,7 @@ const Home = () => {
                   <Link to="/chat" className="btn btn-cs me-3">
                     Go to Recallo
                   </Link>
-                  <Link to="/chat" className="btn btn-cs me-3">
+                  <Link to="/signin" className="btn btn-cs me-3">
                     Sign Up Today
                   </Link>
                 </div>

@@ -29,12 +29,12 @@ const Sidebar = ({ isOpen, toggleSidebar, isLoggedIn }) => {
     <div className={`sidebar ${isOpen ? "open" : "collapsed"}`}>
       <div className="sidebar-header">
         {isOpen && (
-          <img
+          <a href="/"><img
             src={recalloLogo}
             alt="Recallo Logo"
             className="img-fluid logo"
             style={{ maxWidth: "150px" }}
-          />
+          /></a>
         )}
         <FaBars
           onClick={toggleSidebar}
@@ -81,10 +81,10 @@ const Sidebar = ({ isOpen, toggleSidebar, isLoggedIn }) => {
           
               }}
             >
-              <Link to="/login" className="btn btn-cs">
+              <Link to="/signin" className="btn btn-cs">
                 Log In
               </Link>
-              <Link to="/signup" className="btn btn-cs ">
+              <Link to="/signin" className="btn btn-cs ">
                 Sign Up
               </Link>
             </div>

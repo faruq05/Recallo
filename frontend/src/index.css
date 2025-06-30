@@ -10,6 +10,7 @@ body {
 }
 
 :root {
+  --font-stack:'Raleway', sans-serif;
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
@@ -68,15 +69,16 @@ p {
   color: var(--cs-white);
 }
 
-.btn-cs {
+.btn-cs, .auth-card button[type=submit] {
   background-color: var(--cs-primary);
   padding: 10px 30px;
   color: var(--cs-black);
   font-weight: 500;
   border-radius: 10px;
+  border: none;
 }
 
-.btn-cs:hover {
+.btn-cs:hover, .auth-card button[type=submit]:hover {
   background-color: #e49c00;
   color: var(--cs-black);
 }
@@ -154,8 +156,12 @@ p {
   background-blend-mode: overlay;
   background-repeat: no-repeat;
   background-position: center center;
-  height: 100vh;
+}
+
+.hero .row{
+height: 100vh;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
 }
@@ -312,4 +318,9 @@ textarea::-webkit-input-placeholder {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* signin page */
+.auth-card{
+  font-family: var(--font-stack)!important;
 }

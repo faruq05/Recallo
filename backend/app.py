@@ -7,14 +7,14 @@ from supabase import create_client, Client
 from dotenv import load_dotenv
 import os
 
-load_dotenv()
+load_dotenv(dotenv_path=".env")
 
 # Logging setup
 logging.basicConfig(level=logging.DEBUG)
 
 # API and Supabase credentials (use environment variables or hardcode securely)
-SUPABASE_URL = "https://bhrwvazkvsebdxstdcow.supabase.co/"
-SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
+VITE_SUPABASE_URL = "https://bhrwvazkvsebdxstdcow.supabase.co/"
+VITE_SUPABASE_KEY = os.environ.get('VITE_SUPABASE_KEY')
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 
 
@@ -23,7 +23,7 @@ app = Flask(__name__)
 CORS(app, resources={r"/chat": {"origins": "http://localhost:5173", "methods": ["POST"]}})
 
 # Initialize Supabase
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+supabase = create_client(VITE_SUPABASE_URL, VITE_SUPABASE_KEY)
 
 # Initialize Google GenAI (Gemini) client
 client = genai.Client(api_key=GEMINI_API_KEY)
