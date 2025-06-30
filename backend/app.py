@@ -9,6 +9,13 @@ import os
 
 load_dotenv(dotenv_path=".env")
 
+# ✅ Allowed file extensions
+ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx', 'png', 'jpg', 'jpeg', 'webp'}
+
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
 # Logging setup
 logging.basicConfig(level=logging.DEBUG)
 
@@ -20,7 +27,14 @@ GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 
 # Initialize Flask app
 app = Flask(__name__)
-CORS(app, resources={r"/chat": {"origins": "http://localhost:5173", "methods": ["POST"]}})
+CORS(app, resources={
+    r"/chat": {"origins": "http://localhost:5173", "methods": ["POST"]},
+    r"/upload": {"origins": "http://localhost:5173", "methods": ["POST"]}})
+
+# File upload config
+UPLOAD_FOLDER = 'uploads'
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)  # Creates folder if not exists
 
 # Initialize Supabase
 supabase = create_client(VITE_SUPABASE_URL, VITE_SUPABASE_KEY)
@@ -82,6 +96,24 @@ def chat():
     except Exception as e:
         logging.error(f"Error in /chat endpoint: {str(e)}")
         return jsonify({"error": "Something went wrong. Please try again later."}), 500
+
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    if 'file' not in request.files:
+        return jsonify({"error": "No file part"}), 400
+
+    file = request.files['file']
+
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+
+    if file and allowed_file(file.filename):
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+        file.save(file_path)
+        logging.info(f"Uploaded file saved at: {file_path}")
+        return jsonify({"message": "File uploaded successfully", "filename": file.filename}), 200
+
+    return jsonify({"error": "Invalid file type"}), 400
 
 # Run app
 if __name__ == '__main__':
