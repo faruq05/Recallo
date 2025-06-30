@@ -39,11 +39,11 @@ Recallo/ai-engine/.venv/Scripts/python.exe
 
 ## 🔐 .env Configuration
 
-After npm run setup, a .env file will be created inside the backend/ directory.
+After npm run setup, a .env file will be created in the root directory.
 You must replace the placeholders with your actual credentials:
 ```python
-SUPABASE_URL=your_supabase_url
-SUPABASE_KEY=your_supabase_key
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_KEY=your_supabase_key
 GEMINI_API_KEY=your_gemini_api_key
 ```
 
