@@ -19,6 +19,9 @@ const ChatInterface = () => {
 
   const chatContainerRef = useRef(null);
 
+  const [useDocumentMode, setUseDocumentMode] = useState(true);
+
+
   useEffect(() => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop =
@@ -47,7 +50,7 @@ const ChatInterface = () => {
     setLoading(true);
 
     try {
-      const response = await fetch("http://127.0.0.1:5000/chat", {
+      const response = await fetch(`http://127.0.0.1:5000/${useDocumentMode ? "ask" : "chat"}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: input }),
@@ -108,6 +111,17 @@ const ChatInterface = () => {
       className="chatinterface"
       style={{ height: "100vh", display: "flex", flexDirection: "column" }}
     >
+
+      {/* ✅ Add toggle button here */}
+      <div className="text-end px-3 pb-2">
+        <button
+          className="btn btn-sm btn-outline-secondary"
+          onClick={() => setUseDocumentMode(!useDocumentMode)}
+        >
+          {useDocumentMode ? "Switch to Chat Mode" : "Switch to Document Mode"}
+        </button>
+      </div>
+
       <div
         className="chat-response-section"
         ref={chatContainerRef}
