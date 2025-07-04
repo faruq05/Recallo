@@ -138,7 +138,7 @@ from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
-from langchain.vectorstores.supabase import SupabaseVectorStore
+from langchain_community.vectorstores import SupabaseVectorStore
 from langchain.chains import RetrievalQA
 
 from upload_pdf import process_pdf  # ✅ new import
@@ -151,7 +151,7 @@ SUPABASE_URL = "https://bhrwvazkvsebdxstdcow.supabase.co/"
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx', 'png', 'jpg', 'jpeg', 'webp'}
+ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx', 'txt'}
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -246,8 +246,6 @@ def upload_file():
 
 
 
-
-
 # Setup Gemini model
 llm = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash",
@@ -259,6 +257,7 @@ embedding_fn = GoogleGenerativeAIEmbeddings(
     model="models/embedding-001",
     google_api_key=GEMINI_API_KEY
 )
+
 
 # Vector store from Supabase
 vectorstore = SupabaseVectorStore(
@@ -300,10 +299,6 @@ def ask():
 
     
     
-
-
-
-
 # === Run App ===
 if __name__ == '__main__':
     app.run(debug=True)
