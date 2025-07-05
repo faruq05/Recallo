@@ -4,6 +4,7 @@ import { faPenToSquare, faStop, faSpinner } from "@fortawesome/free-solid-svg-ic
 import ChatInput from "./ChatInput";
 import aivis from "../assets/ai-assistant.png";
 import Typewriter from "./Typewriter";
+import RecalloVisual from './RecalloVisual';
 
 const ChatInterface = () => {
   const [input, setInput] = useState("");
@@ -158,6 +159,7 @@ const ChatInterface = () => {
         }}
       >
         <div className="chat-header text-center mb-4">
+          
           <img src={aivis} alt="ai_visualiser" className="img-fluid visual_img" />
           <h2 className="grad_text">Ask Recallo</h2>
         </div>

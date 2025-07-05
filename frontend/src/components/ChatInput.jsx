@@ -45,7 +45,7 @@ const ChatInput = ({
           </button>
         </div>
         {/* send stop button */}
-        <div className="msg_send">
+        <div className="msg_send d-flex">
           <button className="btn btn-otl stop_btn" onClick={handleStop}>
             <Ban style={{ color: "#ffffff" }} />
           </button>

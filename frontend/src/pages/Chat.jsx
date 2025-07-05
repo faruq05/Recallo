@@ -31,7 +31,7 @@ const Chat = () => {
           isHistoryOpen={isHistoryOpen} 
           isLoggedIn={isLoggedIn}
         />
-        <History isLoggedIn={isLoggedIn} isHistoryOpen={isHistoryOpen} />
+        <History isLoggedIn={isLoggedIn} isHistoryOpen={isHistoryOpen} onClose={toggleHistory}/>
       </div>
 
       <div className="chat-content flex-grow-1 position-relative">
