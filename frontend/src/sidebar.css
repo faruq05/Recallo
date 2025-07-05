@@ -2,17 +2,18 @@
 
 /* sidebar */
 .sidebar {
+  width: 260px;
+  transition: width 0.3s ease, padding 0.3s ease;
   background-color: #1a1a1a42;
   backdrop-filter: blur(5px);
-  color: var(--cs-white);
   height: 100vh;
   overflow: hidden;
+  color: var(--cs-white);
   padding: 30px 20px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  transition: width 0.4s ease, padding 0.4s ease;
-  width: 280px;
+  z-index: 1000;
 }
 
 .sidebar.collapsed {
@@ -34,7 +35,6 @@
   transition: opacity 0.4s ease, transform 0.4s ease;
   opacity: 1;
 }
-
 
 /* === MENU LIST === */
 .sidebar-menu,
@@ -116,14 +116,22 @@
 
 
 /* History======================================================*/
-.history {
-  width: 100%;
-  background-color: #1d1d1f;
-  padding: 2rem;
-  min-height: 100vh;
-  color: var(--cs-white);
+.history-panel {
+  position: fixed;
+  top: 0;
+  right: -300px; /* hidden off-screen */
+  width: 300px;
+  height: 100vh;
+  background-color: #171717;
+  box-shadow: -2px 0 10px rgba(0, 0, 0, 0.3);
+  transition: right 0.3s ease;
+  z-index: 1040; /* on top of sidebar */
+  padding: 20px;
+  overflow-y: auto;
 }
 
-.history h3 {
-  margin-bottom: 1rem;
+/* When history panel is open */
+.history-panel.open {
+  right: 0;
 }
+

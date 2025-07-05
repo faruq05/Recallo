@@ -1,19 +1,29 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 
-const Typewriter = ({ text }) => {
+const Typewriter = ({ text, stop }) => {
   const [displayed, setDisplayed] = useState("");
+  const intervalRef = useRef(null);
 
   useEffect(() => {
     let i = 0;
-    const interval = setInterval(() => {
-      setDisplayed((prev) => prev + text.charAt(i));
-      i++;
-      if (i >= text.length) clearInterval(interval);
-    }, 30); // Typing speed (ms per character)
+    setDisplayed("");
 
-    return () => clearInterval(interval); // Cleanup on unmount
-  }, [text]);
+    if (stop) {
+      setDisplayed(text);
+      return;
+    }
+
+    intervalRef.current = setInterval(() => {
+      i++;
+      setDisplayed(text.slice(0, i));
+      if (i >= text.length) {
+        clearInterval(intervalRef.current);
+      }
+    }, 10);
+
+    return () => clearInterval(intervalRef.current);
+  }, [text, stop]);
 
   return <ReactMarkdown>{displayed}</ReactMarkdown>;
 };

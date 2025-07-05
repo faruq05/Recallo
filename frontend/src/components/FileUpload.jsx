@@ -1,9 +1,10 @@
 import React from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faPlus } from "@fortawesome/free-solid-svg-icons";
+import { Plus } from 'lucide-react';
+import { FileUp } from 'lucide-react';
 
 const FileUpload = ({ onFileSelect }) => {
-  const handleFileChange = async (event) => {
+  const handleFileSelect = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
 
@@ -43,14 +44,14 @@ const FileUpload = ({ onFileSelect }) => {
         className="upload-icon chat_ic"
         title="Upload file"
       >
-        <FontAwesomeIcon icon={faPlus} style={{ color: "#ffffff" }} />
+        <FileUp  style={{ color: "#ffffff" }} />
       </label>
       <input
         type="file"
         id="file-upload"
         style={{ display: "none" }}
         accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp"
-        onChange={handleFileChange}
+        onFileSelect={handleFileSelect}
       />
     </>
   );

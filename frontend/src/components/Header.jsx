@@ -1,5 +1,6 @@
 import React from "react";
 import recalloLogo from "../assets/recallo.png";
+import { EqualApproximately } from 'lucide-react';
 const Header = () => {
   return (
     <header className="header">
@@ -9,7 +10,7 @@ const Header = () => {
             <img src={recalloLogo} alt="recallo_logo" className='img-fluid logo' />
           </a>
           <button
-            className="navbar-toggler"
+            className="navbar-toggler ms-auto"
             type="button"
             data-bs-toggle="collapse"
             data-bs-target="#navbarSupportedContent"
@@ -17,7 +18,9 @@ const Header = () => {
             aria-expanded="false"
             aria-label="Toggle navigation"
           >
-            <span className="navbar-toggler-icon"></span>
+            <span className="navbar-toggler-menu">
+              <EqualApproximately />
+            </span>
           </button>
 
           <div className="collapse navbar-collapse" id="navbarSupportedContent">
@@ -45,7 +48,7 @@ const Header = () => {
             </ul>
           </div>
           <div>
-            <a href="" className="btn btn-cs">Get Started</a>
+            <a href="/signin" className="btn btn-cs header-btn">Get Started</a>
           </div>
         </div>
       </nav>
