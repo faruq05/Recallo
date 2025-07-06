@@ -1,5 +1,6 @@
 import "../index.css";
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { createClient } from "@supabase/supabase-js";
 import { Auth } from "@supabase/auth-ui-react";
 import { ThemeSupa } from "@supabase/auth-ui-shared";
@@ -12,10 +13,15 @@ const supabase = createClient(
 
 export default function SignIn() {
   const [session, setSession] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
+      if (session) {
+        localStorage.setItem("userToken", session.access_token); 
+        navigate("/chat"); 
+      }
     });
 
     const {
@@ -35,7 +41,7 @@ export default function SignIn() {
   if (!session) {
     return (
       <div className="home-container">
-        <Header/>
+        <Header />
         <div className="container hero">
           <div className="row">
             <div className="col-md-4">

@@ -1,25 +1,20 @@
-import React, { useState, useEffect } from "react";
+// Chat.jsx
 import Sidebar from "../components/Sidebar";
 import ChatInterface from "../components/ChatInterface";
 import History from "../components/History";
 import { EqualApproximately } from "lucide-react";
+import useSession from "../utils/useSession";
+
 
 const Chat = () => {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 767);
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-
-  const toggleSidebar = () => setIsSidebarOpen((prev) => !prev);
-  const toggleHistory = () => setIsHistoryOpen((prev) => !prev);
-
-  const isLoggedIn = localStorage.getItem("userToken") !== null;
-
-  useEffect(() => {
-    const handleResize = () => {
-      setIsSidebarOpen(window.innerWidth > 767);
-    };
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
+    const {
+    userId,
+    isLoggedIn,
+    isSidebarOpen,
+    isHistoryOpen,
+    toggleSidebar,
+    toggleHistory,
+  } = useSession();
 
   return (
     <div className="chat chat-wrapper d-flex min-vh-100">
@@ -28,17 +23,22 @@ const Chat = () => {
           isOpen={isSidebarOpen}
           toggleSidebar={toggleSidebar}
           toggleHistory={toggleHistory}
-          isHistoryOpen={isHistoryOpen} 
+          isHistoryOpen={isHistoryOpen}
           isLoggedIn={isLoggedIn}
         />
-        <History isLoggedIn={isLoggedIn} isHistoryOpen={isHistoryOpen} onClose={toggleHistory}/>
+        <History
+          isLoggedIn={isLoggedIn}
+          userId={userId}
+          isHistoryOpen={isHistoryOpen}
+          onClose={toggleHistory}
+        />
       </div>
 
       <div className="chat-content flex-grow-1 position-relative">
         <ChatInterface />
         <span className="navbar-toggler-menu">
           <EqualApproximately
-            className="d-lg-none position-fixed top-0 start-0 m-3"
+            className="d-md-none position-fixed top-0 start-0 m-3"
             onClick={toggleSidebar}
             style={{ zIndex: 99 }}
           />

@@ -118,6 +118,12 @@ p {
   background: var(--cs-hover);
 }
 
+canvas {
+  background: transparent !important;
+  display: block;
+}
+
+
 /* custom css */
 /* header */
 .header {
@@ -225,6 +231,12 @@ height: 100vh;
 
 
 /* ChatInterface */
+.chat-header{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+}
 .chatinterface {
   flex: 1;
   padding: 30px;
