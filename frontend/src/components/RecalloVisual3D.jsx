@@ -31,7 +31,7 @@ const RecalloVisual3D = () => {
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.outputColorSpace = THREE.LinearSRGBColorSpace;;
     renderer.setClearColor(0x000000, 0);
-    renderer.domElement.style.backgroundColor = "transparent";
+    renderer.domElement.style.backgroundColor = "none";
     renderer.domElement.style.display = "block";
 
     rendererRef.current = renderer;
@@ -39,7 +39,7 @@ const RecalloVisual3D = () => {
     while (container.firstChild) {
       container.removeChild(container.firstChild);
     }
-    container.style.background = "transparent";
+    container.style.background = "none";
     container.style.margin = "0";
     container.style.padding = "0";
     container.style.overflow = "hidden";
@@ -58,7 +58,7 @@ const RecalloVisual3D = () => {
       fragmentShader,
     });
 
-    const geometry = new THREE.IcosahedronGeometry(1.8, 2);
+    const geometry = new THREE.IcosahedronGeometry(2, 2);
     const mesh = new THREE.Mesh(geometry, material);
     meshRef.current = mesh;
     scene.add(mesh);
@@ -130,7 +130,7 @@ const RecalloVisual3D = () => {
         overflow: "hidden",
         padding: 0,
         margin: 0,
-        background: "transparent",
+        background: "none",
       }}
     />
   );

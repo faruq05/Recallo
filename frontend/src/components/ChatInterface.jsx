@@ -159,9 +159,9 @@ const ChatInterface = () => {
         }}
       >
         <div className="chat-header text-center mb-4">
-           {/* <RecalloVisual3D /> */}
-          <img src={aivis} alt="ai_visualiser" className="img-fluid visual_img" />
-          <h2 className="grad_text">Ask Recallo</h2>
+           <RecalloVisual3D />
+          {/* <img src={aivis} alt="ai_visualiser" className="img-fluid visual_img" /> */}
+          <h2 className="mt-2 grad_text">Ask Recallo</h2>
         </div>
 
         {messages.map((msg) => (
