@@ -57,6 +57,7 @@ const ChatInterface = () => {
       });
 
       const data = await response.json();
+      console.log("📩 Full API Response:", data);
 
       const aiReply = {
         id: Date.now() + 1,

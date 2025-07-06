@@ -6,13 +6,15 @@ const Typewriter = ({ text }) => {
 
   useEffect(() => {
     let i = 0;
-    const interval = setInterval(() => {
-      setDisplayed((prev) => prev + text.charAt(i));
-      i++;
-      if (i >= text.length) clearInterval(interval);
-    }, 30); // Typing speed (ms per character)
+    setDisplayed("");
 
-    return () => clearInterval(interval); // Cleanup on unmount
+    const interval = setInterval(() => {
+      i++;
+      setDisplayed(text.slice(0, i));
+      if (i >= text.length) clearInterval(interval);
+    }, 10);
+
+    return () => clearInterval(interval);
   }, [text]);
 
   return <ReactMarkdown>{displayed}</ReactMarkdown>;

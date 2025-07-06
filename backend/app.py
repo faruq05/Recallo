@@ -1,147 +1,18 @@
-# from flask import Flask, request, jsonify
-# from flask_cors import CORS
-# import os
-# import logging
-# from google import genai
-# from supabase import create_client, Client
-# from dotenv import load_dotenv
-# import os
-
-# load_dotenv()
-
-# # ✅ Allowed file extensions
-# ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx', 'png', 'jpg', 'jpeg', 'webp'}
-
-# def allowed_file(filename):
-#     return '.' in filename and \
-#            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-
-# # Logging setup
-# logging.basicConfig(level=logging.DEBUG)
-
-# # API and Supabase credentials (use environment variables or hardcode securely)
-# SUPABASE_URL = "https://bhrwvazkvsebdxstdcow.supabase.co/"
-# SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
-# GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
-
-
-# # Initialize Flask app
-# app = Flask(__name__)
-
-
-
-# CORS(app, resources={
-#     r"/chat": {"origins": "http://localhost:5173", "methods": ["POST"]},
-#     r"/upload": {"origins": "http://localhost:5173", "methods": ["POST"]}})
-
-
-# # File upload config
-# UPLOAD_FOLDER = 'uploads'
-# app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-# os.makedirs(UPLOAD_FOLDER, exist_ok=True)  # Creates folder if not exists
-
-# # Initialize Supabase
-# supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-# # Initialize Google GenAI (Gemini) client
-# client = genai.Client(api_key=GEMINI_API_KEY)
-
-# # Supabase insertion function
-# def insert_chat_log(user_message, response_message):
-#     try:
-#         data = {"user_message": user_message, "response_message": response_message}
-#         response = supabase.table("chat_logs").insert(data).execute()
-#         if response.status_code == 201:
-#             logging.info("Message successfully inserted into Supabase.")
-#         else:
-#             logging.error(f"Error inserting into Supabase: {response.status_code}")
-#     except Exception as e:
-#         logging.error(f"Error during Supabase insertion: {str(e)}")
-
-# # Google Gemini (GenAI) request function
-# def genai_query(user_message):
-#     try:
-#         # Call the Google Gemini model to generate content
-#         response = client.models.generate_content(
-#             model="gemini-2.5-flash",  # Or another supported model
-#             contents=user_message
-#         )
-
-#         # Access the generated text
-#         return response.text.strip()
-
-#     except Exception as e:
-#         logging.error(f"Error in Gemini request: {str(e)}")
-#         return None
-
-# # Chat endpoint
-# @app.route('/chat', methods=['POST'])
-# def chat():
-#     try:
-#         user_message = request.json.get("message", "")
-#         if not user_message:
-#             return jsonify({"error": "No message provided"}), 400
-
-#         logging.info(f"Received message: {user_message}")
-
-#         # Send the message to Google Gemini
-#         reply = genai_query(user_message)
-
-#         if not reply:
-#             return jsonify({"error": "No response from Google Gemini."}), 500
-
-#         logging.info(f"Generated reply: {reply}")
-
-#         # Log to Supabase
-#         insert_chat_log(user_message, reply)
-
-#         return jsonify({"response": reply}), 200
-
-#     except Exception as e:
-#         logging.error(f"Error in /chat endpoint: {str(e)}")
-#         return jsonify({"error": "Something went wrong. Please try again later."}), 500
-    
-    
-    
-# @app.route('/upload', methods=['POST'])
-# def upload_file():
-#     if 'file' not in request.files:
-#         return jsonify({"error": "No file part"}), 400
-
-#     file = request.files['file']
-
-#     if file.filename == '':
-#         return jsonify({"error": "No selected file"}), 400
-
-#     if file and allowed_file(file.filename):
-#         file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
-#         file.save(file_path)
-#         logging.info(f"Uploaded file saved at: {file_path}")
-#         return jsonify({"message": "File uploaded successfully", "filename": file.filename}), 200
-
-#     return jsonify({"error": "Invalid file type"}), 400
-
-
-# # Run app
-# if __name__ == '__main__':
-#     app.run(debug=True)
-
-
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify,session
 from flask_cors import CORS
 import os
 import logging
 from supabase import create_client
 from dotenv import load_dotenv
-
-from langchain_google_genai import ChatGoogleGenerativeAI
-
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_community.vectorstores import SupabaseVectorStore
 from langchain.chains import RetrievalQA
+from upload_pdf import process_pdf  
+import re
 
-from upload_pdf import process_pdf  # ✅ new import
+
+# Global variable to store the recent file UUID
+recent_file_uid = None
 
 
 # === Load .env and setup ===
@@ -175,6 +46,19 @@ chat_model = ChatGoogleGenerativeAI(
     google_api_key=GEMINI_API_KEY,
     temperature=0.7
 )
+
+# Setup Gemini model
+llm = ChatGoogleGenerativeAI(
+    model="gemini-2.5-flash",
+    google_api_key=GEMINI_API_KEY
+)
+
+# Embedding model
+embedding_fn = GoogleGenerativeAIEmbeddings(
+    model="models/embedding-001",
+    google_api_key=GEMINI_API_KEY
+)
+
 
 # === File type check ===
 def allowed_file(filename):
@@ -216,11 +100,15 @@ def chat():
         logging.error(f"/chat error: {str(e)}")
         return jsonify({"error": "Something went wrong"}), 500
 
-# === File Upload Endpoint ===
+
+
+
 
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
+    global recent_file_uid  # Ensure to use the global variable
+
     if 'file' not in request.files:
         return jsonify({"error": "No file part"}), 400
 
@@ -229,76 +117,235 @@ def upload_file():
         return jsonify({"error": "No selected file"}), 400
 
     if file and allowed_file(file.filename):
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+        # Save the file to the server
+        upload_folder = app.config['UPLOAD_FOLDER']
+        if not os.path.exists(upload_folder):
+            os.makedirs(upload_folder)
+
+        file_path = os.path.join(upload_folder, file.filename)
         file.save(file_path)
         logging.info(f"📥 File saved: {file_path}")
 
-        # ✅ Call your separate module to handle chunking + saving
-        success, result = process_pdf(file_path, supabase, GEMINI_API_KEY)
+        try:
+            # Call your separate module to handle chunking + saving
+            success, chunk_count, uploaded_filename, file_uid = process_pdf(file_path, supabase, GEMINI_API_KEY)
 
-        if success:
-            return jsonify({"message": f"PDF processed. {result} chunks saved."}), 200
-        else:
-            return jsonify({"error": f"Failed to process PDF: {result}"}), 500
+            # Save the file UUID to the global variable
+            recent_file_uid = file_uid  # Store in global variable
+            logging.info(f"File UUID stored: {recent_file_uid}")
+
+            if success:
+                logging.info(f"📌 recent_filename set to: {uploaded_filename}")
+                logging.info(f"🗂️ File UUID: {file_uid}")
+                return jsonify({"message": f"PDF processed. {chunk_count} chunks saved from '{uploaded_filename}'."}), 200
+            else:
+                return jsonify({"error": f"Failed to process PDF: {chunk_count}"}), 500
+
+        except Exception as e:
+            logging.error(f"Error during PDF processing: {str(e)}")
+            return jsonify({"error": "Failed to process the PDF file."}), 500
 
     return jsonify({"error": "Invalid file type"}), 400
 
 
 
 
-# Setup Gemini model
-llm = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",
-    google_api_key=GEMINI_API_KEY
-)
 
-# Embedding model
-embedding_fn = GoogleGenerativeAIEmbeddings(
-    model="models/embedding-001",
-    google_api_key=GEMINI_API_KEY
-)
-
-
-# Vector store from Supabase
-vectorstore = SupabaseVectorStore(
-    client=supabase,
-    embedding=embedding_fn,
-    table_name="documents",
-    query_name="match_documents"
-)
-
-# Retriever (RAG engine)
-retriever = vectorstore.as_retriever()
-
-# Retrieval-QA chain
-qa_chain = RetrievalQA.from_chain_type(
-    llm=llm,
-    retriever=retriever,
-    return_source_documents=True
-)
-
-# Actual endpoint
 @app.route('/ask', methods=['POST'])
 def ask():
     try:
-        user_message = request.json.get("message", "")
-        if not user_message:
-            return jsonify({"error": "No question provided"}), 400
+        user_message = request.json.get("message", "")  # Get the user's message
+        
+        # List of phrases that indicate the user wants a summary or overview
+        summary_keywords = [
+            "summarize", "overview", "summary", "what is on this file", "what is this file about", 
+            "can you summarize", "give me a summary", "summarize the document", "overview of this file",
+            "tell me about this file", "what's in this document", "can you give me the content of this file",
+            "give me an overview", "give me the summary","summary of this file", "summarize this file", "summarize this document",
+            "give me a summary of this file", "give me a summary of this document",
+        ]
+        
+        # Expanded list of phrases indicating the user wants to generate questions
+        question_keywords = [
+            "generate questions", "make questions", "create questions", "ask questions", 
+            "can you make questions for this document", "can you generate questions from this", 
+            "create quiz questions", "generate quiz questions", "formulate questions from this", 
+            "please make some questions", "please generate questions", "can you suggest questions", 
+            "ask about this document", "can you create some questions", "create some questions for me", 
+            "formulate questions", "suggest questions based on this", "can you create a quiz", 
+            "can you ask some questions", "make some questions about this","create some questions","give me some questions",
+            "generate questions from this file", "generate questions from this document", "make questions from this file",
+            "make questions from this document", "create questions from this file", "create questions from this document",
+            "ask questions about this file", "ask questions about this document", "can you generate questions from this file",
+            "can you generate questions from this document", "can you make questions from this file", "can you make questions from this document",
+        ]
 
-        result = qa_chain({"query": user_message})
+        # If the user asks for a summary, trigger the summary function
+        if any(re.search(r'\b' + re.escape(keyword) + r'\b', user_message, re.IGNORECASE) for keyword in summary_keywords):
+            return get_summary()
 
-        # DEBUG: print retrieved chunks
-        for doc in result["source_documents"]:
-            print("📄 Retrieved chunk:", doc.page_content[:200])
+        # If the user asks to generate questions, trigger question generation
+        elif any(re.search(r'\b' + re.escape(keyword) + r'\b', user_message, re.IGNORECASE) for keyword in question_keywords):
+            return generate_questions()
 
-        return jsonify({"response": result["result"]}), 200
+        # For any other question, perform similarity search and provide an answer
+        return get_answer_from_file(user_message)
 
     except Exception as e:
-        logging.error(f"Ask error: {str(e)}")
-        return jsonify({"error": "Failed to get answer"}), 500
+        logging.error(f"❌ Ask route error: {str(e)}")
+        return jsonify({"error": "Internal server error"}), 500
+
+    
+def get_summary():
+    try:
+        global recent_file_uid
+
+        if not recent_file_uid:
+            return jsonify({"error": "No recent file uploaded"}), 400
+
+        # Directly query Supabase to retrieve the chunks for the given file_uuid
+        response = supabase.table('documents').select('content').eq('file_uuid', recent_file_uid).execute()
+        docs = response.data
+
+        if not docs:
+            return jsonify({"error": "No content found for the given file."}), 404
+
+        # Concatenate the content of all chunks into one string
+        concatenated_text = "\n\n".join(doc['content'] for doc in docs)
+
+        # Pass the concatenated content to the summarization model
+        prompt = f"""
+        You are an expert assistant that summarizes documents. Based on the following content, summarize the key points:
+
+        ======== PDF Content ========
+        {concatenated_text}
+        =============================
+
+        Your summary:
+        """
+
+        try:
+            summary = llm.predict(prompt)  # Use the summarization model (e.g., Gemini)
+            # insert_chat_log("Summarize Request", summary.strip())  # Log the interaction
+            return jsonify({"response": summary.strip()}), 200  # Return the summary
+        except Exception as e:
+            logging.error(f"❌ Error summarizing the content: {str(e)}")
+            return jsonify({"response": "⚠️ Failed to summarize the content."}), 200
+    except Exception as e:
+        logging.error(f"❌ Error in get_summary: {str(e)}")
+        return jsonify({"error": "Internal error occurred while fetching the summary."}), 500
+
+
+def generate_questions():
+    try:
+        global recent_file_uid
+
+        if not recent_file_uid:
+            return jsonify({"error": "No recent file uploaded"}), 400
+
+        # Directly query Supabase to retrieve the chunks for the given file_uuid
+        response = supabase.table('documents').select('content').eq('file_uuid', recent_file_uid).execute()
+        docs = response.data
+
+        if not docs:
+            return jsonify({"error": "No content found for the given file."}), 404
+
+        # Concatenate the content of all chunks into one string
+        concatenated_text = "\n\n".join(doc['content'] for doc in docs)
+
+        # Pass the concatenated content to a model to generate questions
+        prompt = f"""
+        You are an expert at generating questions from a given text. Based on the following document, create relevant and insightful questions that can be asked:
+
+        ======== PDF Content ========
+        {concatenated_text}
+        =============================
+
+        Generated questions:
+        """
+
+        try:
+            questions = llm.predict(prompt)  # Use the language model (e.g., Gemini) to generate questions
+            # insert_chat_log("Generate Questions Request", questions.strip())  # Log the interaction
+            return jsonify({"response": questions.strip()}), 200  # Return the generated questions
+        except Exception as e:
+            logging.error(f"❌ Error generating questions: {str(e)}")
+            return jsonify({"response": "⚠️ Failed to generate questions."}), 200
+    except Exception as e:
+        logging.error(f"❌ Error in generate_questions: {str(e)}")
+        return jsonify({"error": "Internal error occurred while generating questions."}), 500
+    
+    
+
 
     
     
+def get_answer_from_file(user_query):
+    try:
+        global recent_file_uid
+
+        if not recent_file_uid:
+            return jsonify({"error": "No recent file uploaded"}), 400
+
+        # Initialize the vector store for similarity search
+        vectorstore = SupabaseVectorStore(
+            client=supabase,
+            embedding=embedding_fn,
+            table_name="documents",
+            query_name="match_documents"
+        )
+
+        # Use the vector store to retrieve relevant documents
+        retriever = vectorstore.as_retriever()
+
+        # Create a retrieval chain with the language model (Google Gemini or other)
+        qa_chain = RetrievalQA.from_chain_type(
+            llm=llm,
+            retriever=retriever,
+            return_source_documents=True
+        )
+
+        # Use invoke() instead of run() to get the response
+        response = qa_chain.invoke(user_query)
+
+        # Extract the result and source_documents
+        result = response.get('result')
+        source_documents = response.get('source_documents')
+
+        # If relevant content is found, return the answer
+        if result:
+            # insert_chat_log(user_query, result.strip())  # Log the interaction
+            return jsonify({
+                "file_uuid": recent_file_uid,
+                "response": result.strip(),
+                "source_documents": [doc.page_content for doc in source_documents]  # Correct way to access content
+            }), 200
+
+        # If no relevant content is found, send the query to the Gemini model for an explanation
+        else:
+            logging.info(f"No relevant content found for the query: {user_query}")
+            return get_explanation_from_api(user_query)
+
+    except Exception as e:
+        logging.error(f"❌ Error in get_answer_from_file: {str(e)}")
+        return jsonify({"error": "Internal error occurred while fetching the answer from file."}), 500
+
+def get_explanation_from_api(user_query):
+    try:
+        # Send the query to the Gemini model for explanation (reuse logic from your /chat endpoint)
+        reply = chat_model.predict(user_query)
+
+        if not reply:
+            return jsonify({"error": "No response from Gemini"}), 500
+
+        
+        return jsonify({"response": reply.strip()}), 200
+
+    except Exception as e:
+        logging.error(f"❌ Error in get_explanation_from_api: {str(e)}")
+        return jsonify({"error": "Something went wrong while getting an explanation from the external API."}), 500
+
+
 # === Run App ===
 if __name__ == '__main__':
     app.run(debug=True)
