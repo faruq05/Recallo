@@ -5,6 +5,7 @@ import History from "../components/History";
 import { EqualApproximately } from "lucide-react";
 import useSession from "../utils/useSession";
 import { createClient } from "@supabase/supabase-js";
+import { useNavigate } from "react-router-dom";
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -21,7 +22,7 @@ const Profile = () => {
     toggleSidebar,
     toggleHistory,
   } = useSession();
-
+  const navigate = useNavigate();
   const signout = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) console.error("Error signing out:", error.message);
@@ -46,29 +47,45 @@ const Profile = () => {
         />
       </div>
 
-      <div className="chat-content flex-grow-1 position-relative p-4 text-white">
-        <h2>User Profile</h2>
-        {isLoggedIn && session ? (
-          <div>
-            {session.user.user_metadata?.avatar_url && (
-              <img
-                src={session.user.user_metadata.avatar_url}
-                alt="User Avatar"
-                className="img-thumbnail mb-3"
-                style={{ maxWidth: "150px" }}
-              />
-            )}
-            <p><strong>Email:</strong> {session.user.email}</p>
-            <p><strong>User ID:</strong> {session.user.id}</p>
-            <p><strong>Display Name:</strong> {session.user.user_metadata?.full_name || "N/A"}</p>
-            <p><strong>Created At:</strong> {new Date(session.user.created_at).toLocaleString()}</p>
-            <button onClick={signout} className="btn btn-danger mt-3">
-              Sign Out
-            </button>
-          </div>
-        ) : (
-          <p>You are not logged in.</p>
-        )}
+      <div className="chat-content flex-grow-1 p-4 text-white d-flex justify-content-center align-items-center">
+        <div
+          className="profile-card text-white p-4"
+          style={{ minWidth: "300px", maxWidth: "600px", width: "100%" }}
+        >
+          <h2 className="text-center mb-2">User Profile</h2>
+          <hr className="mb-4"/>
+          {isLoggedIn && session ? (
+            <>
+              <div className="mb-3 d-flex justify-content-between">
+                <strong>Email:</strong>
+                <span>{session.user.email}</span>
+              </div>
+              <div className="mb-3 d-flex justify-content-between">
+                <strong>User ID:</strong>
+                <span className="text-end">{session.user.id}</span>
+              </div>
+              <div className="mb-3 d-flex justify-content-between">
+                <strong>Display Name:</strong>
+                <span>{session.user.user_metadata?.full_name || "N/A"}</span>
+              </div>
+              <div className="mb-3 d-flex justify-content-between">
+                <strong>Created At:</strong>
+                <span>
+                  {new Date(session.user.created_at).toLocaleString()}
+                </span>
+              </div>
+              <div className="d-flex justify-content-between align-items-center mt-4">
+                <button onClick={() => navigate("/chat")} className="btn btn-cs me-3">Return to Chat</button>
+                <button onClick={signout} className="btn btn-cs btn-danger">
+                  Sign Out
+                </button>
+              </div>
+            </>
+          ) : (
+            <p className="text-center">You are not logged in.</p>
+          )}
+        </div>
+
         <span className="navbar-toggler-menu">
           <EqualApproximately
             className="d-md-none position-fixed top-0 start-0 m-3"

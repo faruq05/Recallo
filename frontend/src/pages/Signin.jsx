@@ -19,8 +19,8 @@ export default function SignIn() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) {
-        localStorage.setItem("userToken", session.access_token); 
-        navigate("/chat"); 
+        localStorage.setItem("userToken", session.access_token);
+        navigate("/chat");
       }
     });
 
@@ -28,6 +28,10 @@ export default function SignIn() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+       if (session) {
+        localStorage.setItem("userToken", session.access_token);
+        navigate("/chat");
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -50,6 +54,7 @@ export default function SignIn() {
                   supabaseClient={supabase}
                   appearance={{ theme: ThemeSupa }}
                   providers={["google", "github"]}
+                  redirectTo="http://localhost:5173/signin"
                 />
               </div>
             </div>

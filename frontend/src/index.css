@@ -396,3 +396,10 @@ textarea::-webkit-input-placeholder {
 }
 
 
+/* profile page */
+.profile-card {
+  background-color: #272727;
+  border-radius: 12px;
+  border: 1px solid var(--cs-border)!important;
+  box-shadow: 0 12px 40px -12px rgb(0 0 0 / 29%);
+}

@@ -30,7 +30,7 @@ app = Flask(__name__)
 CORS(app, resources={
     r"/chat": {"origins": "http://localhost:5173", "methods": ["POST"]},
     r"/upload": {"origins": "http://localhost:5173", "methods": ["POST"]},
-    r"/ask": {"origins": "http://localhost:5173", "methods": ["POST"]},  # ✅ ADD THIS LINE
+    r"/ask": {"origins": "http://localhost:5173", "methods": ["POST"]}, 
 })
 UPLOAD_FOLDER = 'uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
