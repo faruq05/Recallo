@@ -277,22 +277,43 @@ def generate_questions():
         You are an expert at generating questions from a given text. Based on the following document, create relevant and insightful questions that can be asked:You are an expert educator with a deep understanding of how to generate relevant and insightful questions from a given text. Based on the following document, create a mixture of **Multiple Choice Questions (MCQs)** and **broad, open-ended questions** that focus on the most important topics discussed in the text. These questions should reflect the depth and complexity of the material, similar to what a professional-grade teacher would ask.
 
         For each question:
-        1. Provide the **correct answer** at the end of the question.
-        2. **Explain why** the answer is correct, with a focus on the key concepts behind the question.
-        3. Specify **which topic** the question is related to, such as "Topic: [Topic Name]."
-        4. Ensure the questions are well-structured, engaging, and relevant to the content.
-        5. Include at least **one resource or website** where users can learn more about each topic (if applicable) not included in the text and giving resources is not mandatory.
-        6. No need of explanations for the mcq questions, just the question and the answer.
-        7. Make sure the broad questions answers explanation is not too long, just a few sentences.
 
-        Here is the content you need to generate questions from:
+1. Provide the **correct answer** at the end of the question on a **separate line**.
+2. **Explain why** the answer is correct for **broad questions**, with a focus on the key concepts behind the question. Keep the explanation concise, just a few sentences.
+3. Specify **which topic** the question is related to on a **separate line with a line gap** (e.g., "Topic: [Topic Name]").
+4. Ensure the questions are well-structured, engaging, and relevant to the content.
+5. If applicable, provide at least **one resource or website** where users can learn more about each topic (this is **optional** and should be on a **separate new line with a line gap** if included).
+6. **For MCQs**, do not provide explanations—just the question and the answer on separate lines.
+7. **For broad questions**, make sure the explanation is concise, focusing on key ideas.
 
-        ======== PDF Content ========
-        {concatenated_text}
-        =============================
+Here is the content you need to generate questions from:
 
-        Generated questions:
-        """
+======== PDF Content ========
+{concatenated_text}
+=============================
+
+Generated Questions and Answers will be in the following format:
+
+1. **Question**: [Insert Question Here]
+
+   **Answer**: [Insert Correct Answer Here]
+
+   **Topic**: [Insert Topic Name Here]
+
+   [Optional: **Learn More**: [Insert Learning Resource or Website Here]]
+
+2. **Question**: [Insert Question Here]
+
+   **Answer**: [Insert Correct Answer Here]
+
+   **Explanation**: [Provide Explanation for the Answer in a Few Sentences]
+
+   **Topic**: [Insert Topic Name Here]
+
+   [Optional: **Learn More**: [Insert Learning Resource or Website Here]]
+
+[Repeat as needed for additional questions]
+"""
 
         try:
             questions = llm.predict(prompt)  # Use the language model (e.g., Gemini) to generate questions
