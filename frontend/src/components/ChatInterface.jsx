@@ -1,37 +1,56 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faPenToSquare, faStop, faSpinner } from "@fortawesome/free-solid-svg-icons";
-import ChatInput from "./ChatInput";
+import {
+  faPenToSquare,
+  faStop,
+  faSpinner,
+} from "@fortawesome/free-solid-svg-icons";
 import aivis from "../assets/ai-assistant.png";
 import Typewriter from "./Typewriter";
-import RecalloVisual3D from './RecalloVisual3D';
+import ChatInput from "./ChatInput";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_KEY
+);
 
 const ChatInterface = () => {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [useDocumentMode, setUseDocumentMode] = useState(false);
-  const [lastUploadedFileName, setLastUploadedFileName] = useState(null);
   const [controller, setController] = useState(null);
-  const [stopTyping, setStopTyping] = useState(false);
-
+  const [userId, setUserId] = useState(null);
   const chatContainerRef = useRef(null);
+  const [useDocumentMode, setUseDocumentMode] = useState(false);
 
-  // Scroll to bottom on new message
   useEffect(() => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
   }, [messages]);
 
-  // Abort any previous controller before creating new one
-  const handleSend = useCallback(async () => {
-    if (!input.trim()) return;
+  useEffect(() => {
+    // Get Supabase session and extract user_id
+    const fetchSession = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-    // Abort previous if any
-    if (controller) {
-      controller.abort();
-    }
+      if (session?.user?.id) {
+        setUserId(session.user.id);
+      }
+    };
+
+    fetchSession();
+  }, []);
+
+  const handleSend = async () => {
+    if (input.trim() === "") return;
+
+    if (controller) controller.abort();
+    const abortController = new AbortController();
+    setController(abortController);
 
     const userMsg = {
       id: Date.now(),
@@ -46,32 +65,28 @@ const ChatInterface = () => {
       isProcessing: true,
     };
 
-    setStopTyping(false);
-    const abortController = new AbortController();
-    setController(abortController);
-
     setMessages((prev) => [...prev, userMsg, processingMsg]);
     setInput("");
     setLoading(true);
 
     try {
-      const response = await fetch("http://localhost:5000/ask", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: input,
-          filename: lastUploadedFileName,
-          document_mode: useDocumentMode,
-        }),
-        signal: abortController.signal,
-      });
+      const response = await fetch(
+        `http://127.0.0.1:5000/${useDocumentMode ? "ask" : "chat"}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: input, user_id: userId }),
+          signal: abortController.signal,
+        }
+      );
 
       const data = await response.json();
+      console.log("\ud83d\udce9 Full API Response:", data);
 
       const aiReply = {
         id: Date.now() + 1,
         type: "ai",
-        text: data?.response || "Sorry, I couldn't generate a response.",
+        text: data.response || "Sorry, I couldn't generate a response.",
       };
 
       setMessages((prev) =>
@@ -84,8 +99,8 @@ const ChatInterface = () => {
         type: "ai",
         text:
           error.name === "AbortError"
-            ? "⚠️ Response stopped by user."
-            : "⚠️ Something went wrong. Please try again.",
+            ? "\u26a0\ufe0f Response stopped by user."
+            : "\u26a0\ufe0f Something went wrong. Please try again.",
       };
       setMessages((prev) =>
         prev.map((msg) => (msg.id === "loading-spinner" ? errorReply : msg))
@@ -94,54 +109,34 @@ const ChatInterface = () => {
       setLoading(false);
       setController(null);
     }
-  }, [input, lastUploadedFileName, useDocumentMode, controller]);
+  };
 
-  const handleFileSelect = useCallback(async (file) => {
-    const formData = new FormData();
-    formData.append("file", file);
+  const handleFileSelect = (file) => {
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: Date.now(),
+        type: "user",
+        text: `\ud83d\udcce Uploaded: ${file.name}`,
+      },
+    ]);
+  };
 
-    try {
-      const response = await fetch("http://localhost:5000/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setMessages((prev) => [
-          ...prev,
-          { id: Date.now(), type: "user", text: `📎 Uploaded: ${file.name}` },
-        ]);
-        setLastUploadedFileName(file.name);
-      } else {
-        console.error("Upload failed:", data?.error || "Unknown error");
-      }
-    } catch (error) {
-      console.error("Error uploading file:", error);
+  const handleEdit = (id) => {
+    const toEdit = messages.find((msg) => msg.id === id);
+    if (toEdit) {
+      setInput(toEdit.text);
+      setMessages(messages.filter((msg) => msg.id !== id));
     }
-  }, []);
+  };
 
-  const handleEdit = useCallback(
-    (id) => {
-      setMessages((prevMessages) => {
-        const toEdit = prevMessages.find((msg) => msg.id === id);
-        if (!toEdit) return prevMessages;
-        setInput(toEdit.text);
-        return prevMessages.filter((msg) => msg.id !== id);
-      });
-    },
-    [setInput]
-  );
-
-  const handleStop = useCallback(() => {
+  const handleStop = () => {
     if (controller) {
       controller.abort();
       setController(null);
     }
-    setStopTyping(true);
     setLoading(false);
-  }, [controller]);
+  };
 
   return (
     <div
@@ -155,13 +150,16 @@ const ChatInterface = () => {
           flexGrow: 1,
           overflowY: "auto",
           padding: "10px",
-          marginBottom: 20, // fixed to number for consistency
+          marginBottom: "50px",
         }}
       >
         <div className="chat-header text-center mb-4">
-           <RecalloVisual3D />
-          {/* <img src={aivis} alt="ai_visualiser" className="img-fluid visual_img" /> */}
-          <h2 className="mt-2 grad_text">Ask Recallo</h2>
+          <img
+            src={aivis}
+            alt="ai_visualiser"
+            className="img-fluid visual_img"
+          />
+          <h2 className="grad_text">Ask Recallo</h2>
         </div>
 
         {messages.map((msg) => (
@@ -169,19 +167,26 @@ const ChatInterface = () => {
             {msg.type === "user" ? (
               <>
                 <p style={{ whiteSpace: "pre-wrap", marginBottom: 0 }}>
-                  <strong style={{ display: "block", marginBottom: "10px" }}>You:</strong>
+                  <strong style={{ display: "block", marginBottom: "10px" }}>
+                    You:
+                  </strong>
                   {msg.text}
                 </p>
                 <div className="message-actions d-flex mt-3">
                   <button
                     className="btn chat_ic me-2"
                     onClick={() => handleEdit(msg.id)}
-                    aria-label="Edit message"
                   >
-                    <FontAwesomeIcon icon={faPenToSquare} style={{ color: "#fff" }} />
+                    <FontAwesomeIcon
+                      icon={faPenToSquare}
+                      style={{ color: "#ffffff" }}
+                    />
                   </button>
-                  <button className="btn chat_ic" onClick={handleStop} aria-label="Stop response">
-                    <FontAwesomeIcon icon={faStop} style={{ color: "#fff" }} />
+                  <button className="btn chat_ic" onClick={handleStop}>
+                    <FontAwesomeIcon
+                      icon={faStop}
+                      style={{ color: "#ffffff" }}
+                    />
                   </button>
                 </div>
               </>
@@ -197,10 +202,11 @@ const ChatInterface = () => {
                 </strong>
                 {msg.isProcessing ? (
                   <div className="processing-spinner">
-                    <FontAwesomeIcon icon={faSpinner} spin /> Recallo is processing...
+                    <FontAwesomeIcon icon={faSpinner} spin /> Recallo is
+                    processing...
                   </div>
                 ) : (
-                  <Typewriter key={msg.id} text={msg.text} stop={stopTyping} />
+                  <Typewriter key={msg.id} text={msg.text} />
                 )}
               </div>
             )}

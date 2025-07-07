@@ -63,7 +63,7 @@
 
 .sidebar-menu li:hover,
 .profile_section li:hover {
-  background-color: var(--cs-border);
+  background-color: var(--cs-border)!important;
 }
 
 .icon {

@@ -35,7 +35,9 @@ const Chat = () => {
       </div>
 
       <div className="chat-content flex-grow-1 position-relative">
-        <ChatInterface />
+        <div className="col-md-12 col-lg-12 col-xl-12 col-xxl-8 m-auto">
+          <ChatInterface />
+        </div>
         <span className="navbar-toggler-menu">
           <EqualApproximately
             className="d-md-none position-fixed top-0 start-0 m-3"

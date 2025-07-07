@@ -76,7 +76,7 @@ const Profile = () => {
               </div>
               <div className="d-flex justify-content-between align-items-center mt-4">
                 <button onClick={() => navigate("/chat")} className="btn btn-cs me-3">Return to Chat</button>
-                <button onClick={signout} className="btn btn-cs btn-danger">
+                <button onClick={signout} className="btn btn-danger" style={{ padding: "10px 30px" }}>
                   Sign Out
                 </button>
               </div>

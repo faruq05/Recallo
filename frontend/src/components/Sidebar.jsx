@@ -1,7 +1,5 @@
-// Sidebar.jsx
 import React from "react";
 import {
-  FaBars,
   FaTasks,
   FaBook,
   FaCheck,
@@ -13,8 +11,8 @@ import {
   FaHistory,
 } from "react-icons/fa";
 import recalloLogo from "../assets/recallo.png";
-import { Link } from "react-router-dom";
-import { EqualApproximately } from 'lucide-react';
+import { Link, useLocation } from "react-router-dom"; // 👈 Import useLocation
+import { EqualApproximately } from "lucide-react";
 
 const menuItems = [
   { icon: <FaTasks />, label: "To-Do List", path: "/todo" },
@@ -28,11 +26,11 @@ const menuItems = [
 ];
 
 const Sidebar = ({ isOpen, toggleSidebar, toggleHistory, isHistoryOpen, isLoggedIn }) => {
+  const location = useLocation(); // 👈 Current route
+
   const handleSidebarToggle = () => {
     toggleSidebar();
-    if (isHistoryOpen) {
-      toggleHistory(); // close the history panel if it's open
-    }
+    if (isHistoryOpen) toggleHistory();
   };
 
   return (
@@ -58,25 +56,38 @@ const Sidebar = ({ isOpen, toggleSidebar, toggleHistory, isHistoryOpen, isLogged
       {isLoggedIn ? (
         <>
           <ul className="sidebar-menu">
-            {menuItems.map((item, index) => (
-              <li key={index} className="menu-item">
-                <Link
-                  to={item.path}
-                  className="d-flex align-items-center text-white text-decoration-none w-100"
-                  style={{ display: "flex" }}
+            {menuItems.map((item, index) => {
+              const isActive = location.pathname === item.path;
+              return (
+                <li
+                  key={index}
+                  className="menu-item"
+                  style={{
+                    backgroundColor: isActive ? "var(--cs-border)" : "transparent",
+                    borderRadius: "8px",
+                  }}
                 >
-                  <span className="icon me-2">{item.icon}</span>
-                  {isOpen && <span className="label">{item.label}</span>}
-                </Link>
-              </li>
-            ))}
+                  <Link
+                    to={item.path}
+                    className="d-flex align-items-center text-white text-decoration-none w-100"
+                  >
+                    <span className="icon me-2">{item.icon}</span>
+                    {isOpen && <span className="label">{item.label}</span>}
+                  </Link>
+                </li>
+              );
+            })}
 
             <li
               onClick={toggleHistory}
               className="d-flex align-items-center mb-3 text-white"
-              style={{ cursor: "pointer" }}
+              style={{
+                cursor: "pointer",
+                backgroundColor: isHistoryOpen ? "var(--cs-border)" : "transparent",
+                borderRadius: "8px",
+              }}
             >
-              <span className="icon">
+              <span className="icon me-2">
                 <FaHistory />
               </span>
               {isOpen && <span className="label">History</span>}
@@ -84,11 +95,16 @@ const Sidebar = ({ isOpen, toggleSidebar, toggleHistory, isHistoryOpen, isLogged
           </ul>
 
           <div className="profile_section">
-            <li className="menu-item">
+            <li
+              className="menu-item"
+              style={{
+                backgroundColor: location.pathname === "/profile" ? "var(--cs-border)" : "transparent",
+                borderRadius: "8px",
+              }}
+            >
               <Link
                 to="/profile"
                 className="d-flex align-items-center text-white text-decoration-none w-100"
-                style={{ display: "flex" }}
               >
                 <span className="icon me-2">
                   <FaUser />
