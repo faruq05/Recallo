@@ -1,5 +1,6 @@
-from flask import Flask, request, jsonify,session
+from flask import Flask, request, jsonify,current_app
 from flask_cors import CORS
+from flask.testing import FlaskClient
 import os
 import logging
 from supabase import create_client
@@ -41,16 +42,17 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # === Initialize LangChain Gemini Chat Model ===
-chat_model = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",  # or "gemini-1.5-pro"
-    google_api_key=GEMINI_API_KEY,
-    temperature=0.7
-)
+# chat_model = ChatGoogleGenerativeAI(
+#     model="gemini-2.5-flash",  # or "gemini-1.5-pro"
+#     google_api_key=GEMINI_API_KEY,
+#     temperature=0.7
+# )
 
 # Setup Gemini model
 llm = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash",
-    google_api_key=GEMINI_API_KEY
+    google_api_key=GEMINI_API_KEY,
+    temperature=0.3
 )
 
 # Embedding model
@@ -69,13 +71,14 @@ def insert_chat_log(user_message, response_message):
     try:
         data = {"user_message": user_message, "response_message": response_message}
         response = supabase.table("chat_logs").insert(data).execute()
-        if response.status_code == 201:
-            logging.info("Message successfully inserted into Supabase.")
+        # Check if there is an error in the response
+        if response.data is None:
+            logging.warning(f"Supabase insert failed: {response.error.message}")
         else:
-            logging.warning(f"Supabase insert status: {response.status_code}")
+            logging.info("Message successfully inserted into Supabase.")
     except Exception as e:
         logging.error(f"Supabase insert error: {str(e)}")
-
+        
 # === Gemini Chat Endpoint ===
 @app.route('/chat', methods=['POST'])
 def chat():
@@ -86,7 +89,19 @@ def chat():
 
         logging.info(f"Received message: {user_message}")
 
-        reply = chat_model.predict(user_message)
+        # Enhanced educational and conversational prompt
+        prompt = f"""
+        You are an AI assistant with a deep knowledge base designed to help users learn and understand any topic in the most effective and engaging way. Your role is to provide clear, accurate, and detailed explanations, making complex topics easy to understand. 
+
+        Respond to the user with a friendly, conversational tone, as if you're explaining the concept to a student. Break down the topic step by step when necessary, and give real-life examples to aid comprehension. Also, offer YouTube video suggestions that are relevant to the topic for further learning.
+
+        Be empathetic, patient, and provide well-rounded answers. If the user asks for clarifications or examples, be ready to offer more detailed responses and give helpful suggestions.
+
+        User message: {user_message}
+        """
+
+        # Send the prompt to Gemini
+        reply = llm.predict(prompt)
 
         if not reply:
             return jsonify({"error": "No response from Gemini"}), 500
@@ -99,6 +114,7 @@ def chat():
     except Exception as e:
         logging.error(f"/chat error: {str(e)}")
         return jsonify({"error": "Something went wrong"}), 500
+
 
 
 
@@ -162,7 +178,7 @@ def ask():
             "can you summarize", "give me a summary", "summarize the document", "overview of this file",
             "tell me about this file", "what's in this document", "can you give me the content of this file",
             "give me an overview", "give me the summary","summary of this file", "summarize this file", "summarize this document",
-            "give me a summary of this file", "give me a summary of this document",
+            "give me a summary of this file", "give me a summary of this document","summarise"
         ]
         
         # Expanded list of phrases indicating the user wants to generate questions
@@ -215,7 +231,16 @@ def get_summary():
 
         # Pass the concatenated content to the summarization model
         prompt = f"""
-        You are an expert assistant that summarizes documents. Based on the following content, summarize the key points:
+        You are an expert assistant with a deep understanding of how to summarize complex documents in a clear, concise, and professional manner. Based on the following content, summarize the key points in a way that is easy to understand, highlighting the most important information while keeping the summary brief and to the point.
+
+        Please focus on:
+        1. Extracting the core ideas and themes.
+        2. Presenting the summary in a structured format with key takeaways.
+        3. Avoiding unnecessary details or long explanations.
+
+        Make sure the summary is **short and professional**, providing only the most relevant and actionable insights.
+
+        Here is the content you need to summarize:
 
         ======== PDF Content ========
         {concatenated_text}
@@ -226,7 +251,7 @@ def get_summary():
 
         try:
             summary = llm.predict(prompt)  # Use the summarization model (e.g., Gemini)
-            # insert_chat_log("Summarize Request", summary.strip())  # Log the interaction
+            insert_chat_log("Summarize Request", summary.strip())  # Log the interaction
             return jsonify({"response": summary.strip()}), 200  # Return the summary
         except Exception as e:
             logging.error(f"❌ Error summarizing the content: {str(e)}")
@@ -255,7 +280,16 @@ def generate_questions():
 
         # Pass the concatenated content to a model to generate questions
         prompt = f"""
-        You are an expert at generating questions from a given text. Based on the following document, create relevant and insightful questions that can be asked:
+        You are an expert at generating questions from a given text. Based on the following document, create relevant and insightful questions that can be asked:You are an expert educator with a deep understanding of how to generate relevant and insightful questions from a given text. Based on the following document, create a mixture of **Multiple Choice Questions (MCQs)** and **broad, open-ended questions** that focus on the most important topics discussed in the text. These questions should reflect the depth and complexity of the material, similar to what a professional-grade teacher would ask.
+
+        For each question:
+        1. Provide the **correct answer** at the end of the question.
+        2. **Explain why** the answer is correct, with a focus on the key concepts behind the question.
+        3. Specify **which topic** the question is related to, such as "Topic: [Topic Name]."
+        4. Ensure the questions are well-structured, engaging, and relevant to the content.
+        5. Include at least **one resource or website** where users can learn more about each topic.
+
+        Here is the content you need to generate questions from:
 
         ======== PDF Content ========
         {concatenated_text}
@@ -266,7 +300,7 @@ def generate_questions():
 
         try:
             questions = llm.predict(prompt)  # Use the language model (e.g., Gemini) to generate questions
-            # insert_chat_log("Generate Questions Request", questions.strip())  # Log the interaction
+            insert_chat_log("Generate Questions Request", questions.strip())  # Log the interaction
             return jsonify({"response": questions.strip()}), 200  # Return the generated questions
         except Exception as e:
             logging.error(f"❌ Error generating questions: {str(e)}")
@@ -314,7 +348,7 @@ def get_answer_from_file(user_query):
 
         # If relevant content is found, return the answer
         if result:
-            # insert_chat_log(user_query, result.strip())  # Log the interaction
+            insert_chat_log(user_query, result.strip())  # Log the interaction
             return jsonify({
                 "file_uuid": recent_file_uid,
                 "response": result.strip(),
@@ -332,15 +366,22 @@ def get_answer_from_file(user_query):
 
 def get_explanation_from_api(user_query):
     try:
-        # Send the query to the Gemini model for explanation (reuse logic from your /chat endpoint)
-        reply = chat_model.predict(user_query)
-
-        if not reply:
-            return jsonify({"error": "No response from Gemini"}), 500
-
-        
-        return jsonify({"response": reply.strip()}), 200
-
+        # Simulate a POST request to the /chat route from within this function
+        with current_app.test_client() as client:
+            # Send the user query to the /chat route as if it were a user request
+            response = client.post('/chat', json={"message": user_query})
+            
+            # Check if the response was successful
+            if response.status_code == 200:
+                response_json = response.get_json()
+                reply = response_json.get("response", "").strip()
+                
+                if not reply:
+                    return jsonify({"error": "No response from Gemini"}), 500
+                
+                return jsonify({"response": reply}), 200
+            else:
+                return jsonify({"error": "Something went wrong with the /chat endpoint."}), 500
     except Exception as e:
         logging.error(f"❌ Error in get_explanation_from_api: {str(e)}")
         return jsonify({"error": "Something went wrong while getting an explanation from the external API."}), 500
