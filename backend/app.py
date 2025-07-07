@@ -41,12 +41,6 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 # === Initialize Supabase ===
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# === Initialize LangChain Gemini Chat Model ===
-# chat_model = ChatGoogleGenerativeAI(
-#     model="gemini-2.5-flash",  # or "gemini-1.5-pro"
-#     google_api_key=GEMINI_API_KEY,
-#     temperature=0.7
-# )
 
 # Setup Gemini model
 llm = ChatGoogleGenerativeAI(
