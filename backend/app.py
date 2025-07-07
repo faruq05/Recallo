@@ -177,7 +177,7 @@ def ask():
         
         # Expanded list of phrases indicating the user wants to generate questions
         question_keywords = [
-            "generate questions", "make questions", "create questions", "ask questions", 
+            "generate questions","generate question", "make questions","make question", "create questions","create question", "ask questions", 
             "can you make questions for this document", "can you generate questions from this", 
             "create quiz questions", "generate quiz questions", "formulate questions from this", 
             "please make some questions", "please generate questions", "can you suggest questions", 
@@ -281,7 +281,9 @@ def generate_questions():
         2. **Explain why** the answer is correct, with a focus on the key concepts behind the question.
         3. Specify **which topic** the question is related to, such as "Topic: [Topic Name]."
         4. Ensure the questions are well-structured, engaging, and relevant to the content.
-        5. Include at least **one resource or website** where users can learn more about each topic.
+        5. Include at least **one resource or website** where users can learn more about each topic (if applicable) not included in the text and giving resources is not mandatory.
+        6. No need of explanations for the mcq questions, just the question and the answer.
+        7. Make sure the broad questions answers explanation is not too long, just a few sentences.
 
         Here is the content you need to generate questions from:
 
