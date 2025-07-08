@@ -285,6 +285,8 @@ def generate_questions():
 5. If applicable, provide at least **one resource or website** where users can learn more about each topic (this is **optional** and should be on a **separate new line with a line gap** if included).
 6. **For MCQs**, do not provide explanations—just the question and the answer on separate lines.
 7. **For broad questions**, make sure the explanation is concise, focusing on key ideas.
+8. Options will be on a separate line and make gap between the 4 options as well as the question so that it is easy to read.
+9. It is not mandatory to generate 10 questions, but try to generate at least 5 questions.
 
 Here is the content you need to generate questions from:
 
