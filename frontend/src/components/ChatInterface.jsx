@@ -9,6 +9,7 @@ import aivis from "../assets/ai-assistant.png";
 import Typewriter from "./Typewriter";
 import ChatInput from "./ChatInput";
 import { createClient } from "@supabase/supabase-js";
+import RecalloVisual3D from "../components/RecalloVisual3D";
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -154,11 +155,12 @@ const ChatInterface = () => {
         }}
       >
         <div className="chat-header text-center mb-4">
-          <img
+          <RecalloVisual3D />
+          {/* <img
             src={aivis}
             alt="ai_visualiser"
             className="img-fluid visual_img"
-          />
+          /> */}
           <h2 className="grad_text">Ask Recallo</h2>
         </div>
 
