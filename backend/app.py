@@ -11,6 +11,13 @@ from langchain.chains import RetrievalQA
 from upload_pdf import process_pdf
 from langchain.memory import ConversationBufferWindowMemory
 from langchain.chains import ConversationChain
+from config import PINECONE_API_KEY
+from pinecone import Pinecone
+from langchain_pinecone import PineconeVectorStore
+from fetch_text_supabase import fetch_full_text_from_supabase
+from langchain.schema import HumanMessage
+
+
 
 
 # === Load Environment Variables ===
@@ -27,6 +34,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 # === Initialize Flask App ===
 app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5MB
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
@@ -104,6 +112,8 @@ def chat():
 @app.route('/upload', methods=['POST'])
 def upload_file():
     global recent_file_uid 
+    user_id=request.form.get("user_id")  # Get user ID from the form data
+    print(f"User ID from upload: {user_id}")  # Debugging line to check user ID
 
     if 'file' not in request.files:
         return jsonify({"error": "No file part"}), 400
@@ -111,6 +121,10 @@ def upload_file():
     file = request.files['file']
     if file.filename == '':
         return jsonify({"error": "No selected file"}), 400
+    
+    # Check file size
+    if file and file.content_length > app.config['MAX_CONTENT_LENGTH']:
+        return jsonify({"error": "File is too large. Max size is 5MB"}), 413
 
     if file and allowed_file(file.filename):
         # Save the file to the server
@@ -124,7 +138,7 @@ def upload_file():
 
         try:
             # Call your separate module to handle chunking + saving
-            success, chunk_count, uploaded_filename, file_uid = process_pdf(file_path, supabase, GEMINI_API_KEY)
+            success, chunk_count, uploaded_filename, file_uid = process_pdf(file_path, supabase, GEMINI_API_KEY, user_id)
 
             # Save the file UUID to the global variable
             recent_file_uid = file_uid  # Store in global variable
@@ -147,6 +161,7 @@ def upload_file():
 def ask():
     try:
         user_message = request.json.get("message", "")  # Get the user's message
+        user_id = request.json.get("user_id")
         
         # List of phrases that indicate the user wants a summary or overview
         summary_keywords = [
@@ -173,15 +188,15 @@ def ask():
         ]
 
         # If the user asks for a summary, trigger the summary function
-        if any(re.search(r'\b' + re.escape(keyword) + r'\b', user_message, re.IGNORECASE) for keyword in summary_keywords):
-            return get_summary()
+        # if any(re.search(r'\b' + re.escape(keyword) + r'\b', user_message, re.IGNORECASE) for keyword in summary_keywords):
+        #     return get_summary()
 
-        # If the user asks to generate questions, trigger question generation
-        elif any(re.search(r'\b' + re.escape(keyword) + r'\b', user_message, re.IGNORECASE) for keyword in question_keywords):
-            return generate_questions()
+        # # If the user asks to generate questions, trigger question generation
+        # elif any(re.search(r'\b' + re.escape(keyword) + r'\b', user_message, re.IGNORECASE) for keyword in question_keywords):
+        #     return generate_questions()
 
         # For any other question, perform similarity search and provide an answer
-        return get_answer_from_file(user_message)
+        return get_answer_from_file(user_message, user_id)
 
     except Exception as e:
         logging.error(f"❌ Ask route error: {str(e)}")
@@ -300,34 +315,69 @@ def generate_questions():
         logging.error(f"Error in generate_questions: {e}")
         return jsonify({"error": "Failed to generate questions"}), 500
 
-def get_answer_from_file(user_query):
-    global recent_file_uid
+def get_answer_from_file(user_query, user_id):
     try:
-        if not recent_file_uid:
-            return jsonify({"error": "No recent file uploaded"}), 400
+        # # Get input from the request body
+        # user_query = request.json.get("user_query")
+        # user_id = request.json.get("user_id")
+        userID=user_id;
+        userQuery= user_query;
 
-        retriever = SupabaseVectorStore(
-            client=supabase,
-            embedding=embedding_fn,
-            table_name="documents",
-            query_name="match_documents"
-        ).as_retriever()
+        if not user_query or not user_id:
+            return jsonify({"error": "Missing user_query or user_id"}), 400
 
-        qa_chain = RetrievalQA.from_chain_type(
-            llm=llm,
-            retriever=retriever,
-            return_source_documents=True
+
+        # Initialize Pinecone client
+        pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
+
+        # Get existing index
+        index = pc.Index("document-index")
+
+        # Set up Langchain Pinecone VectorStore
+        vectorstore = PineconeVectorStore(
+            index=index,
+            embedding=embedding_fn
         )
 
-        response = qa_chain.invoke(user_query)
-        result = response.get('result')
-        sources = [doc.page_content for doc in response.get('source_documents', [])]
+        query_embedding = embedding_fn.embed_query(userQuery)
 
-        if result:
-            insert_chat_log(user_query, result.strip())
-            return jsonify({"response": result.strip(), "file_uuid": recent_file_uid, "source_documents": sources}), 200
+        pinecone_results = index.query(
+            vector=query_embedding,
+            filter={"user_id": userID},
+            top_k=5,
+            include_metadata=True
+        )
+
+        print(f"Pinecone Matches: {pinecone_results['matches']}")
+        # Check if no matches found
+        if not pinecone_results['matches']:
+            return jsonify({"response": "No relevant content found."}), 200
+
+
+        relevant_docs = []
+        for match in pinecone_results['matches']:
+            print(f"Metadata: {match['metadata']}")
+            file_uuid = match['metadata'].get("file_uuid")
+            full_text = fetch_full_text_from_supabase(supabase, file_uuid, user_id)
+            print(f"Full Text: {full_text}")
+            
+        if full_text:
+            relevant_docs.append(full_text)
+
+        if relevant_docs:
+            # Concatenate or process relevant_docs as needed before LLM
+            combined_text = "\n".join(relevant_docs)
+            # Build chat message properly
+            prompt = combined_text + "\n\nUser Question: " + user_query
+            result = llm([HumanMessage(content=prompt)])
+
+            return jsonify({
+                "response": result.content,
+                "source_documents": relevant_docs
+            }), 200
         else:
-            return get_explanation_from_api(user_query)
+            return jsonify({"response": "No relevant content found."}), 200
+
     except Exception as e:
         logging.error(f"Error in get_answer_from_file: {e}")
         return jsonify({"error": "Failed to fetch answer"}), 500

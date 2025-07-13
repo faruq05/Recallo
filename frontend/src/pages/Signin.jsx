@@ -20,6 +20,7 @@ export default function SignIn() {
       setSession(session);
       if (session) {
         localStorage.setItem("userToken", session.access_token);
+        localStorage.setItem("userId", session.user.id);
         navigate("/chat");
       }
     });
@@ -28,18 +29,22 @@ export default function SignIn() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-       if (session) {
+      if (session) {
         localStorage.setItem("userToken", session.access_token);
+        localStorage.setItem("userId", session.user.id);
         navigate("/chat");
       }
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [navigate]);
 
   const signout = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) console.error("Error signing out:", error.message);
+    localStorage.removeItem("userToken");
+    localStorage.removeItem("userId");
+    navigate("/signin");
   };
 
   if (!session) {
