@@ -135,3 +135,27 @@
   right: 0;
 }
 
+.chat_return {
+  background-color: var(--cs-primary)!important;
+  padding: 10px 30px!important;
+  color: var(--cs-black)!important;
+  font-weight: 500!important;
+  border-radius: 10px!important;
+  border: none!important;
+}
+
+.chat_label{
+   color: var(--cs-black)!important;
+}
+
+.cicon{
+  color: var(--cs-black)!important;
+}
+
+.chat_return:hover .chat_label{
+color: var(--cs-white)!important;
+}
+
+.chat_return:hover .cicon{
+color: var(--cs-white)!important;
+}

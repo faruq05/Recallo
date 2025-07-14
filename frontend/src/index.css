@@ -436,3 +436,27 @@ textarea::-webkit-input-placeholder {
   margin-bottom: 20px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
+
+    .todo-content {
+        overflow: scroll;
+    }
+
+.card-body p{
+  color: var(--cs-black);
+  font-size: 14px;
+  overflow: hidden;
+text-overflow: ellipsis;
+white-space: nowrap;
+}
+
+/* topic page */
+.topic_card{
+  background-color: var(--cs-matblack);
+  padding: 10px;
+}
+
+.topic_card p{
+  color: var(--cs-white);
+  font-size: 14px;
+  margin-bottom: 15px;
+}

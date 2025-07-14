@@ -25,6 +25,18 @@ const ChatInterface = () => {
   const chatContainerRef = useRef(null);
   const [useDocumentMode, setUseDocumentMode] = useState(false);
 
+  const [user, setUser] = useState(null);
+  
+    useEffect(() => {
+      const fetchUser = async () => {
+        const { data, error } = await supabase.auth.getUser();
+        if (!error && data?.user) {
+          setUser(data.user);
+        }
+      };
+      fetchUser();
+    }, []);
+
   useEffect(() => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
@@ -161,7 +173,10 @@ const ChatInterface = () => {
             alt="ai_visualiser"
             className="img-fluid visual_img"
           /> */}
-          <h2 className="grad_text">Ask Recallo</h2>
+          <h2 className="grad_text mt-2">Hello
+                  {user?.user_metadata?.full_name
+                    ? `, ${user.user_metadata.full_name}`
+                    : ""}! Ask Recallo</h2>
         </div>
 
         {messages.map((msg) => (
