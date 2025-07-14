@@ -1,31 +1,27 @@
 import React from "react";
-import {
-  FaTasks,
-  FaBook,
-  FaCheck,
-  FaExclamation,
-  FaChartBar,
-  FaClipboardList,
-  FaCog,
-  FaUser,
-  FaHistory,
-} from "react-icons/fa";
+import { ListTodo, FileSliders, ListTree, ShieldAlert, ChartPie, BookOpenCheck, Settings, History, User } from 'lucide-react';
 import recalloLogo from "../assets/recallo.png";
 import { Link, useLocation } from "react-router-dom"; // 👈 Import useLocation
 import { EqualApproximately } from "lucide-react";
+import { MessageCircle } from "lucide-react";
 
 const menuItems = [
-  { icon: <FaTasks />, label: "To-Do List", path: "/todo" },
-  { icon: <FaBook />, label: "Your Resources", path: "/resources" },
-  { icon: <FaCheck />, label: "Covered Topics", path: "/covered" },
-  { icon: <FaExclamation />, label: "Weak Areas", path: "/weak-areas" },
-  { icon: <FaChartBar />, label: "Progress", path: "/progress" },
-  { icon: <FaClipboardList />, label: "Quizzes", path: "/quizzes" },
-  { icon: <FaBook />, label: "Exam Tracker", path: "/exam-tracker" },
-  { icon: <FaCog />, label: "Settings", path: "/settings" },
+  { icon: <ListTodo />, label: "To-Do List", path: "/todo" },
+  { icon: <FileSliders />, label: "Your Resources", path: "/resources" },
+  { icon: <ListTree />, label: "Covered Topics", path: "/topics" },
+  { icon: <ShieldAlert />, label: "Weak Areas", path: "/weak-areas" },
+  { icon: <ChartPie />, label: "Progress", path: "/progress" },
+  { icon: <BookOpenCheck />, label: "Quizzes", path: "/quizzes" },
+  { icon:  <Settings />, label: "Settings", path: "/settings" },
 ];
 
-const Sidebar = ({ isOpen, toggleSidebar, toggleHistory, isHistoryOpen, isLoggedIn }) => {
+const Sidebar = ({
+  isOpen,
+  toggleSidebar,
+  toggleHistory,
+  isHistoryOpen,
+  isLoggedIn,
+}) => {
   const location = useLocation(); // 👈 Current route
 
   const handleSidebarToggle = () => {
@@ -63,7 +59,9 @@ const Sidebar = ({ isOpen, toggleSidebar, toggleHistory, isHistoryOpen, isLogged
                   key={index}
                   className="menu-item"
                   style={{
-                    backgroundColor: isActive ? "var(--cs-border)" : "transparent",
+                    backgroundColor: isActive
+                      ? "var(--cs-border)"
+                      : "transparent",
                     borderRadius: "8px",
                   }}
                 >
@@ -83,12 +81,14 @@ const Sidebar = ({ isOpen, toggleSidebar, toggleHistory, isHistoryOpen, isLogged
               className="d-flex align-items-center mb-3 text-white"
               style={{
                 cursor: "pointer",
-                backgroundColor: isHistoryOpen ? "var(--cs-border)" : "transparent",
+                backgroundColor: isHistoryOpen
+                  ? "var(--cs-border)"
+                  : "transparent",
                 borderRadius: "8px",
               }}
             >
-              <span className="icon me-2">
-                <FaHistory />
+              <span className="icon ">
+                <History />
               </span>
               {isOpen && <span className="label">History</span>}
             </li>
@@ -98,7 +98,10 @@ const Sidebar = ({ isOpen, toggleSidebar, toggleHistory, isHistoryOpen, isLogged
             <li
               className="menu-item"
               style={{
-                backgroundColor: location.pathname === "/profile" ? "var(--cs-border)" : "transparent",
+                backgroundColor:
+                  location.pathname === "/profile"
+                    ? "var(--cs-border)"
+                    : "transparent",
                 borderRadius: "8px",
               }}
             >
@@ -107,11 +110,34 @@ const Sidebar = ({ isOpen, toggleSidebar, toggleHistory, isHistoryOpen, isLogged
                 className="d-flex align-items-center text-white text-decoration-none w-100"
               >
                 <span className="icon me-2">
-                  <FaUser />
+                  <User />
                 </span>
                 {isOpen && <span className="label">Profile</span>}
               </Link>
             </li>
+            {/* Return to Chat */}
+            {location.pathname !== "/chat" && (
+              <li
+                className="menu-item chat_return"
+                style={{
+                  backgroundColor:
+                    location.pathname === "/chat"
+                      ? "var(--cs-border)"
+                      : "transparent",
+                  borderRadius: "8px",
+                }}
+              >
+                <Link
+                  to="/chat"
+                  className="d-flex align-items-center text-white text-decoration-none w-100"
+                >
+                  <span className="icon me-2 cicon">
+                    <MessageCircle />
+                  </span>
+                  {isOpen && <span className="label chat_label">Return to Chat</span>}
+                </Link>
+              </li>
+            )}
           </div>
         </>
       ) : (

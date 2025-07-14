@@ -11,8 +11,8 @@ import useSession from "../utils/useSession";
 import { Modal, Button } from "react-bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
 import { Plus } from "lucide-react";
-import { Trash } from 'lucide-react';
-import { Save } from 'lucide-react';
+import { Trash } from "lucide-react";
+import { Save } from "lucide-react";
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -35,18 +35,7 @@ const Todo = () => {
     toggleHistory,
   } = useSession();
 
-  const [tasks, setTasks] = useState({
-    todo: [],
-    on_hold: [],
-    completed: [],
-  });
-
-  const [newTask, setNewTask] = useState({
-    title: "",
-    description: "",
-    due_date: new Date(),
-  });
-
+  // user fetch
   const [user, setUser] = useState(null);
 
   useEffect(() => {
@@ -58,6 +47,18 @@ const Todo = () => {
     };
     fetchUser();
   }, []);
+
+  const [tasks, setTasks] = useState({
+    todo: [],
+    on_hold: [],
+    completed: [],
+  });
+
+  const [newTask, setNewTask] = useState({
+    title: "",
+    description: "",
+    due_date: new Date(),
+  });
 
   const [selectedTask, setSelectedTask] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -208,7 +209,7 @@ const Todo = () => {
         />
       </div>
 
-      <div className="chat-content todo-content flex-grow-1 p-4 text-white d-flex flex-column">
+      <div className="chat-content todo-content flex-grow-1 p-4 text-white">
         <div className="container">
           <div className="row justify-content-center align-items-center mt-4">
             <div className="col-xl-12">
@@ -222,95 +223,102 @@ const Todo = () => {
                 </h2>
               </div>
             </div>
-          </div>
-        </div>
-        <div className="mb-4 d-flex gap-3 flex-wrap align-items-center justify-content-center task_box">
-          <input
-            type="text"
-            className="form-control"
-            placeholder="Task Title"
-            style={{ maxWidth: "250px" }}
-            value={newTask.title}
-            onChange={(e) =>
-              setNewTask((prev) => ({ ...prev, title: e.target.value }))
-            }
-          />
-          <input
-            type="text"
-            className="form-control"
-            placeholder="Description"
-            style={{ maxWidth: "300px" }}
-            value={newTask.description}
-            onChange={(e) =>
-              setNewTask((prev) => ({ ...prev, description: e.target.value }))
-            }
-          />
-          <DatePicker
-            selected={newTask.due_date}
-            onChange={(date) =>
-              setNewTask((prev) => ({ ...prev, due_date: date }))
-            }
-            className="form-control"
-            showTimeSelect
-            dateFormat="Pp"
-          />
-          <button className="btn btn-cs" onClick={addTask}>
-            <Plus /> Add Task
-          </button>
-        </div>
+            <div className="col-xl-12">
+              <div className="mb-4 d-flex gap-3 flex-wrap align-items-center justify-content-center task_box">
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="Task Title"
+                  style={{ maxWidth: "250px" }}
+                  value={newTask.title}
+                  onChange={(e) =>
+                    setNewTask((prev) => ({ ...prev, title: e.target.value }))
+                  }
+                />
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="Description"
+                  style={{ maxWidth: "300px" }}
+                  value={newTask.description}
+                  onChange={(e) =>
+                    setNewTask((prev) => ({
+                      ...prev,
+                      description: e.target.value,
+                    }))
+                  }
+                />
+                <DatePicker
+                  selected={newTask.due_date}
+                  onChange={(date) =>
+                    setNewTask((prev) => ({ ...prev, due_date: date }))
+                  }
+                  className="form-control"
+                  showTimeSelect
+                  dateFormat="Pp"
+                />
+                <button className="btn btn-cs" onClick={addTask}>
+                  <Plus /> Add Task
+                </button>
+              </div>
 
-        <DragDropContext onDragEnd={onDragEnd}>
-          <div className="d-flex gap-3 flex-grow-1 justify-content-center draggercard">
-            {lanes.map((lane) => (
-              <Droppable droppableId={lane.id} key={lane.id}>
-                {(provided) => (
-                  <div
-                    className="todocard p-3"
-                    style={{ width: "320px", minHeight: "500px" }}
-                    ref={provided.innerRef}
-                    {...provided.droppableProps}
-                  >
-                    <h5 className="text-white mb-3">{lane.title}</h5>
-                    {tasks[lane.id].map((task, index) => (
-                      <Draggable
-                        key={task.id}
-                        draggableId={task.id.toString()}
-                        index={index}
-                      >
-                        {(provided) => (
-                          <div
-                            className="card mb-2"
-                            ref={provided.innerRef}
-                            {...provided.draggableProps}
-                            {...provided.dragHandleProps}
-                            onClick={() => openModal(task)}
-                          >
-                            <div className="card-body p-2">
-                              <h6 className="card-title">{task.title}</h6>
-                              <p
-                                className="card-text mb-1"
-                                style={{ fontSize: "0.9em" }}
-                              >
-                                {task.description}
-                              </p>
-                              <small className="text-muted">
-                                Due:{" "}
-                                {task.due_date
-                                  ? new Date(task.due_date).toLocaleString()
-                                  : "N/A"}
-                              </small>
-                            </div>
-                          </div>
-                        )}
-                      </Draggable>
-                    ))}
-                    {provided.placeholder}
-                  </div>
-                )}
-              </Droppable>
-            ))}
+              <DragDropContext onDragEnd={onDragEnd}>
+                <div className="d-flex gap-3 flex-grow-1 justify-content-center draggercard">
+                  {lanes.map((lane) => (
+                    <Droppable droppableId={lane.id} key={lane.id}>
+                      {(provided) => (
+                        <div
+                          className="todocard p-3"
+                          style={{ width: "320px", minHeight: "500px" }}
+                          ref={provided.innerRef}
+                          {...provided.droppableProps}
+                        >
+                          <h5 className="text-white mb-3">{lane.title}</h5>
+                          {tasks[lane.id].map((task, index) => (
+                            <Draggable
+                              key={task.id}
+                              draggableId={task.id.toString()}
+                              index={index}
+                            >
+                              {(provided) => (
+                                <div
+                                  className="card mb-2"
+                                  ref={provided.innerRef}
+                                  {...provided.draggableProps}
+                                  {...provided.dragHandleProps}
+                                  onClick={() => openModal(task)}
+                                >
+                                  <div className="card-body p-2">
+                                    <h6 className="card-title">{task.title}</h6>
+                                    <hr/>
+                                    <p className="card-text mb-1">
+                                      {task.description.length > 150
+                                        ? `${task.description.slice(0, 150)}...`
+                                        : task.description}
+                                    </p>
+                                    <small className="text-muted">
+                                      Due:{" "}
+                                      {task.due_date
+                                        ? new Date(
+                                            task.due_date
+                                          ).toLocaleString()
+                                        : "N/A"}
+                                    </small>
+                                  </div>
+                                </div>
+                              )}
+                            </Draggable>
+                          ))}
+                          {provided.placeholder}
+                        </div>
+                      )}
+                    </Droppable>
+                  ))}
+                </div>
+              </DragDropContext>
+            </div>
           </div>
-        </DragDropContext>
+        </div>
 
         <span className="navbar-toggler-menu">
           <EqualApproximately
@@ -322,14 +330,14 @@ const Todo = () => {
       </div>
 
       {/* Task Edit Modal */}
-      <Modal show={showModal} onHide={() => setShowModal(false)} centered>
+      <Modal show={showModal} onHide={() => setShowModal(false)} centered dialogClassName="modal-dialog modal-dialog-scrollable">
         <Modal.Header closeButton>
           <Modal.Title>{selectedTask?.title}</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <textarea
             className="form-control mb-3"
-            rows={5}
+            rows={10}
             value={selectedTask?.description || ""}
             onChange={(e) =>
               setSelectedTask((prev) => ({
@@ -356,7 +364,7 @@ const Todo = () => {
             <Trash />
           </Button>
           <Button variant="success" onClick={handleUpdateTask}>
-             <Save />
+            <Save />
           </Button>
         </Modal.Footer>
       </Modal>
