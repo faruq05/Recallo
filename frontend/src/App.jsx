@@ -8,6 +8,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import Profile from "./pages/Profile";
 import Todo from "./pages/Todo";
 import Topics from "./pages/Topics";
+import Exam from "./pages/Exam";
 function App() {
   return (
     <Router>
@@ -19,6 +20,7 @@ function App() {
         <Route path="/profile" element={<Profile />} />
         <Route path="/todo" element={<Todo />} />
         <Route path="/topics" element={<Topics />} />
+        <Route path="/exam" element={<Exam />} />
       </Routes>
     </Router>
   );
