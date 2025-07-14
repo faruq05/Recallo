@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "setup:frontend": "cd frontend && npm install",
-        "setup:venv": "cd ai-engine && python -m venv .venv && .venv\\Scripts\\activate && pip install -r requirements.txt",
+    "setup:frontend": "cd frontend && npm install && echo REACT_APP_API_URL=http://localhost:5000 > .env",
+    "setup:venv": "cd ai-engine && python -m venv .venv && .venv\\Scripts\\activate && pip install -r requirements.txt",
     "setup": "npm run setup:frontend && npm run setup:venv"
   }
 }
