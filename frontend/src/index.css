@@ -33,6 +33,7 @@ body {
   --cs-white:#fff;
   --cs-hover:#e49c00;
   --cs-border:#ffffff21;
+  --cs-matblack:#272727
 }
 
 h1,
@@ -407,4 +408,31 @@ textarea::-webkit-input-placeholder {
   border-radius: 12px;
   border: 1px solid var(--cs-border)!important;
   box-shadow: 0 12px 40px -12px rgb(0 0 0 / 29%);
+}
+
+/* todo */
+.task_box input{
+  background-color: transparent;
+  color: var(--cs-white);
+  border: 1px solid var(--cs-border);
+}
+
+.task_box input::placeholder {
+  color: var(--cs-white);
+}
+
+.task_box input:focus{
+  background-color: var(--cs-matblack);
+  outline: none;
+  box-sizing: none;
+  border-color: var(--cs-white);
+  color: var(--cs-white);
+}
+
+.todocard{
+  background-color: var(--cs-matblack);
+  border-radius: 15px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }

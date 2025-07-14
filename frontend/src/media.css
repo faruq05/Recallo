@@ -1,3 +1,9 @@
+@media(max-width:1300px){
+  .todo-content{
+    overflow:scroll;
+  }
+}
+
 @media(max-width:1199px) {
   h1 {
   font-size: 50px!important;
@@ -59,6 +65,8 @@
     position: relative;
   }
 
+  
+
 }
 
 
@@ -66,4 +74,16 @@
   .chat-response{
     width: 90%;
   }
+
+   .draggercard{
+    flex-direction: column;
+  }
+
+  .todocard {
+    width: 90%!important;
+    margin-top: 30px;
+    margin-bottom: 0px;
+    margin: auto;
+  }
+
 }

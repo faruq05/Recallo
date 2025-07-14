@@ -1,8 +1,19 @@
 import React from "react";
+import { useEffect } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPlus } from "@fortawesome/free-solid-svg-icons";
+import { Tooltip } from "bootstrap";
 
 const FileUpload = ({ onFileSelect }) => {
+  useEffect(() => {
+    // Activate all tooltips on the page
+    const tooltipTriggerList = document.querySelectorAll(
+      '[data-bs-toggle="tooltip"]'
+    );
+    tooltipTriggerList.forEach((tooltipTriggerEl) => {
+      new Tooltip(tooltipTriggerEl);
+    });
+  }, []);
   const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB size limit
   const handleFileChange = async (event) => {
     const file = event.target.files[0];
@@ -20,7 +31,7 @@ const FileUpload = ({ onFileSelect }) => {
     }
 
     // Retrieve the user_id from localStorage (or any other method)
-    const userId = localStorage.getItem("userId");  // Assuming user_id is saved in localStorage
+    const userId = localStorage.getItem("userId"); // Assuming user_id is saved in localStorage
 
     // Check if userId is available
     if (!userId) {
@@ -57,12 +68,13 @@ const FileUpload = ({ onFileSelect }) => {
 
   return (
     <>
-      <label
-        htmlFor="file-upload"
-        className="upload-icon chat_ic"
-        title="Upload file"
-      >
-        <FontAwesomeIcon icon={faPlus} style={{ color: "#ffffff" }} />
+      <label htmlFor="file-upload" className="upload-icon chat_ic" data-bs-toggle="tooltip"
+          data-bs-placement="top"
+          title="Allowed formats: PDF, DOC, DOCX, TXT. Max size: 5 MB.">
+        <FontAwesomeIcon
+          icon={faPlus}
+          style={{ color: "#ffffff", cursor: "pointer" }}
+        />
       </label>
       <input
         type="file"
@@ -71,9 +83,6 @@ const FileUpload = ({ onFileSelect }) => {
         accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp"
         onChange={handleFileChange}
       />
-      <p style={{ fontSize: "15px", color: "#888", marginTop: "5px" }}>
-        Allowed formats: PDF, DOC, DOCX, TXT. <br></br> Max size: 5 MB.
-      </p>
     </>
   );
 };
