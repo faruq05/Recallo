@@ -11,7 +11,7 @@ const menuItems = [
   { icon: <ListTree />, label: "Covered Topics", path: "/topics" },
   { icon: <ShieldAlert />, label: "Weak Areas", path: "/weak-areas" },
   { icon: <ChartPie />, label: "Progress", path: "/progress" },
-  { icon: <BookOpenCheck />, label: "Quizzes", path: "/quizzes" },
+  { icon: <BookOpenCheck />, label: "Exams", path: "/exam" },
   { icon:  <Settings />, label: "Settings", path: "/settings" },
 ];
 

@@ -89,6 +89,10 @@ p {
   color: var(--cs-black);
 }
 
+.chat_scroll{
+  overflow: scroll;
+}
+
 @media (prefers-color-scheme: light) {
   :root {
     color: #213547;
@@ -403,11 +407,12 @@ textarea::-webkit-input-placeholder {
 
 
 /* profile page */
-.profile-card {
-  background-color: #272727;
+.profile-card, .exam_rules{
+  background-color: #272727!important;
   border-radius: 12px;
   border: 1px solid var(--cs-border)!important;
   box-shadow: 0 12px 40px -12px rgb(0 0 0 / 29%);
+  padding: 20px;
 }
 
 /* todo */
@@ -459,4 +464,42 @@ white-space: nowrap;
   color: var(--cs-white);
   font-size: 14px;
   margin-bottom: 15px;
+}
+
+/* exam page */
+.exam_rules h3{
+  font-size: 30px;
+  color: var(--cs-primary);
+}
+
+.timer-exam {
+  font-size: 50px;
+  color: var(--cs-hover)!important;
+  font-weight: 800!important;
+  background-color: var(--cs-border)!important;
+  width: 50%;
+  margin: auto;
+  border-radius: 10px;
+}
+
+.exam_time_header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background-color: var(--cs-matblack);
+  padding: 20px;
+  border-radius: 15px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.questions .mcq{
+   background-color: var(--cs-matblack);
+  padding: 20px;
+  border-radius: 15px;
+}
+
+.exam-timer{
+  font-weight: 700;
+  color: var(--cs-hover);
+  font-size: 30px;
 }
