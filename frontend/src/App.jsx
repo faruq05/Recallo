@@ -9,6 +9,7 @@ import Profile from "./pages/Profile";
 import Todo from "./pages/Todo";
 import Topics from "./pages/Topics";
 import Exam from "./pages/Exam";
+import Progress from "./pages/Progress";
 function App() {
   return (
     <Router>
@@ -21,6 +22,7 @@ function App() {
         <Route path="/todo" element={<Todo />} />
         <Route path="/topics" element={<Topics />} />
         <Route path="/exam" element={<Exam />} />
+        <Route path="/progress" element={<Progress />} />
       </Routes>
     </Router>
   );

@@ -503,3 +503,46 @@ white-space: nowrap;
   color: var(--cs-hover);
   font-size: 30px;
 }
+
+
+/* progress page */
+
+.test_details_progress strong{
+  color: var(--cs-primary);
+}
+.test_details_progress .text-muted{
+  color: #fff!important;
+}
+
+.marks_hitory{
+  padding: 15px;
+  margin: 15px 0;
+  border: 1px solid var(--cs-border);
+  border-radius: 10px;
+}
+
+.btn-answer{
+  background-color: var(--cs-primary);
+  color: var(--cs-black);
+}
+
+.btn-answer:hover{
+  background-color: var(--cs-hover);
+  color: var(--cs-black);
+}
+
+.marks_progress button{
+  border: 1px solid var(--cs-border);
+}
+
+.marks_progress button:hover{
+  border: 1px solid #fff;
+}
+
+.marks_progress button:active{
+  border-color: #fff!important;
+}
+
+.marks_progress button:focus{
+  border-color: #fff!important;
+}
