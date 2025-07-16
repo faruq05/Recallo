@@ -95,8 +95,8 @@ const Topics = () => {
     {/* Main Content */}
     <div className="chat-content flex-grow-1 p-4 text-white d-flex flex-column">
       {/* Header */}
-      <div className="container text-center mb-4">
-        <h2 className="grad_text">Upload Your PDF</h2>
+      <div className="container text-center mb-4 mt-4">
+        <h2 className="grad_text">Upload Your Files</h2>
       </div>
 
       {/* Upload Section */}
