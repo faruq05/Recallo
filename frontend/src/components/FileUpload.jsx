@@ -28,6 +28,7 @@ const FileUpload = ({ onFileSelect }) => {
     // Optional: Notify UI that a file was picked
     if (onFileSelect) {
       onFileSelect(file);
+      return;
     }
 
     // Retrieve the user_id from localStorage (or any other method)
@@ -57,8 +58,17 @@ const FileUpload = ({ onFileSelect }) => {
       if (res.ok) {
         console.log("✅ Upload success:", data);
       } else {
-        console.error("❌ Upload failed:", data.error);
-        alert("Upload failed: " + data.error);
+        const errMsg = data.error || data.message || "Unknown error";
+
+        if (res.status === 409) {
+          alert("Duplicate file: " + errMsg);
+        } else if (res.status === 413) {
+          alert("File too large: " + errMsg);
+        } else {
+          alert("Upload failed: " + errMsg);
+        }
+
+        console.error("❌ Upload failed:", errMsg);
       }
     } catch (err) {
       console.error("❌ Upload error:", err);
@@ -69,8 +79,8 @@ const FileUpload = ({ onFileSelect }) => {
   return (
     <>
       <label htmlFor="file-upload" className="upload-icon chat_ic" data-bs-toggle="tooltip"
-          data-bs-placement="top"
-          title="Allowed formats: PDF, DOC, DOCX, TXT. Max size: 5 MB.">
+        data-bs-placement="top"
+        title="Allowed formats: PDF, DOC, DOCX, TXT. Max size: 5 MB.">
         <FontAwesomeIcon
           icon={faPlus}
           style={{ color: "#ffffff", cursor: "pointer" }}
@@ -88,3 +98,71 @@ const FileUpload = ({ onFileSelect }) => {
 };
 
 export default FileUpload;
+
+
+// import React from "react";
+// import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+// import { faPlus } from "@fortawesome/free-solid-svg-icons";
+
+// const FileUpload = ({ uploadTarget, inputId }) => {
+//   const handleFileChange = async (event) => {
+//     const file = event.target.files[0];
+//     if (!file) return;
+
+//     const MAX_FILE_SIZE = 5 * 1024 * 1024;
+//     if (file.size > MAX_FILE_SIZE) {
+//       alert("File size exceeds 5MB.");
+//       return;
+//     }
+
+//     const userId = localStorage.getItem("userId");
+//     if (!userId) {
+//       alert("User ID missing.");
+//       return;
+//     }
+
+//     const formData = new FormData();
+//     formData.append("file", file);
+//     formData.append("user_id", userId);
+
+//     try {
+//       const response = await fetch(`http://127.0.0.1:5000${uploadTarget}`, {
+//         method: "POST",
+//         body: formData,
+//       });
+
+//       const data = await response.json();
+//       if (response.ok) {
+//         alert(`✅ Uploaded successfully to ${uploadTarget}`);
+//         console.log(data);
+//       } else {
+//         alert(`❌ Upload failed: ${data.message || data.error}`);
+//       }
+//     } catch (err) {
+//       console.error("❌ Upload error:", err);
+//       alert("Upload error");
+//     }
+//   };
+
+//   return (
+//     <>
+//       <input
+//         type="file"
+//         id={inputId}
+//         accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp"
+//         style={{ display: "none" }}
+//         onChange={handleFileChange}
+//       />
+//       <label htmlFor={inputId} className="upload-icon chat_ic" data-bs-toggle="tooltip"
+//         data-bs-placement="top"
+//         title="Allowed formats: PDF, DOC, DOCX, TXT. Max size: 5 MB.">
+//         <FontAwesomeIcon
+//           icon={faPlus}
+//           style={{ color: "#ffffff", cursor: "pointer" }}
+//         />
+//       </label>
+//     </>
+//   );
+// };
+
+// export default FileUpload;

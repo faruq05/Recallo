@@ -42,7 +42,7 @@ def generate_unique_file_id():
     # Generate a unique UUID for each uploaded file
     return str(uuid.uuid4())  # Generate and return the UUID as a string
 
-def process_pdf(file_path, supabase, gemini_api_key, user_id):
+def process_pdf(file_path, supabase, gemini_api_key, user_id,file_hash):
     try:
         # Extract the filename automatically
         file_name = os.path.basename(file_path)
@@ -95,14 +95,16 @@ def process_pdf(file_path, supabase, gemini_api_key, user_id):
         # Step 7: Prepare rows for Supabase insertion (with embeddings)
         rows = [
             {
+                "chunk_id": file_uuid + f"_chunk_{i}",
                 "content": doc.page_content,  # Document content
                 "embedding": embedding,  # Embedding (vector for similarity search)
                 "metadata": doc.metadata,  # Metadata (including file_uuid)
                 "filename": file_name,  # Insert filename directly
                 "file_uuid": file_uuid,  # Store the unique file UUID with each chunk
-                "user_id": user_id  # Store the user ID with each chunk
+                "user_id": user_id,  # Store the user ID with each chunk
+                "hash_file": file_hash
             }
-            for doc, embedding in zip(docs, embeddings)  # Loop over docs and embeddings
+            for i, (doc, embedding) in enumerate(zip(docs, embeddings))  # Loop over docs and embeddings
         ]
         
         # Step 8: Insert the rows into Supabase (store metadata)
