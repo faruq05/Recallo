@@ -3,6 +3,9 @@ from flask_cors import CORS
 import os
 import logging
 import re
+import uuid
+import hashlib
+from datetime import datetime
 from dotenv import load_dotenv
 from supabase import create_client
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
@@ -14,9 +17,9 @@ from langchain.chains import ConversationChain
 from config import PINECONE_API_KEY
 from pinecone import Pinecone
 from langchain_pinecone import PineconeVectorStore
-from fetch_text_supabase import fetch_full_text_from_supabase
+from fetch_text_supabase import fetch_chunk_text_from_supabase
 from langchain.schema import HumanMessage
-
+from process_pdf_for_quiz import process_pdf_for_quiz
 
 
 
@@ -34,6 +37,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 # === Initialize Flask App ===
 app = Flask(__name__)
+CORS(app)
 app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5MB
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -42,6 +46,7 @@ CORS(app, resources={
     r"/chat": {"origins": "http://localhost:5173", "methods": ["POST"]},
     r"/upload": {"origins": "http://localhost:5173", "methods": ["POST"]},
     r"/ask": {"origins": "http://localhost:5173", "methods": ["POST"]},
+    r"/quiz-question": {"origins": "http://localhost:5173", "methods": ["POST"]},
 })
 
 # === Initialize Supabase & Langchain Models ===
@@ -112,8 +117,9 @@ def chat():
 @app.route('/upload', methods=['POST'])
 def upload_file():
     global recent_file_uid 
-    user_id=request.form.get("user_id")  # Get user ID from the form data
-    print(f"User ID from upload: {user_id}")  # Debugging line to check user ID
+    logging.info("Upload route hit")
+    user_id = request.form.get("user_id")  # Get user ID from the form data
+    print(f"User ID from upload: {user_id}")
 
     if 'file' not in request.files:
         return jsonify({"error": "No file part"}), 400
@@ -121,13 +127,34 @@ def upload_file():
     file = request.files['file']
     if file.filename == '':
         return jsonify({"error": "No selected file"}), 400
-    
-    # Check file size
-    if file and file.content_length > app.config['MAX_CONTENT_LENGTH']:
+
+    # Read file bytes to compute hash
+    file_bytes = file.read()
+    file_hash = hashlib.sha256(file_bytes).hexdigest()
+    file.seek(0)  # Reset file pointer after reading
+
+    # Check file size (adjust if needed since content_length might not always be available)
+    if file.content_length and file.content_length > app.config['MAX_CONTENT_LENGTH']:
         return jsonify({"error": "File is too large. Max size is 5MB"}), 413
 
+    # Check if file hash already exists for this user in Supabase
+    try:
+        response = supabase.table('documents') \
+            .select('id') \
+            .eq('user_id', user_id) \
+            .eq('hash_file', file_hash) \
+            .execute()
+        
+        if response.data and len(response.data) > 0:
+            # File already uploaded by this user
+            logging.info(f"Duplicate upload detected for user {user_id} with file hash {file_hash}")
+            return jsonify({"message": "You have already uploaded this file earlier."}), 409
+    except Exception as e:
+        logging.error(f"Error querying Supabase: {e}")
+        return jsonify({"error": "Internal server error checking uploads."}), 500
+
+    # Validate file extension/type
     if file and allowed_file(file.filename):
-        # Save the file to the server
         upload_folder = app.config['UPLOAD_FOLDER']
         if not os.path.exists(upload_folder):
             os.makedirs(upload_folder)
@@ -137,10 +164,9 @@ def upload_file():
         logging.info(f"📥 File saved: {file_path}")
 
         try:
-            # Call your separate module to handle chunking + saving
-            success, chunk_count, uploaded_filename, file_uid = process_pdf(file_path, supabase, GEMINI_API_KEY, user_id)
+            # Process your PDF file as usual
+            success, chunk_count, uploaded_filename, file_uid = process_pdf(file_path, supabase, GEMINI_API_KEY, user_id,file_hash)
 
-            # Save the file UUID to the global variable
             recent_file_uid = file_uid  # Store in global variable
             logging.info(f"File UUID stored: {recent_file_uid}")
 
@@ -156,6 +182,65 @@ def upload_file():
             return jsonify({"error": "Failed to process the PDF file."}), 500
 
     return jsonify({"error": "Invalid file type"}), 400
+
+
+
+@app.route('/quiz-question', methods=['POST'])
+def quiz_question():
+    user_id = request.form.get("user_id")
+    file = request.files.get("file")
+
+    if not user_id or not file:
+        return jsonify({"error": "Missing user_id or file."}), 400
+    
+    # Read file bytes to compute hash
+    file_bytes = file.read()
+    file_hash = hashlib.sha256(file_bytes).hexdigest()
+    file.seek(0)  # Reset file pointer after reading
+
+    if len(file_bytes) > app.config['MAX_CONTENT_LENGTH']:
+        return jsonify({"error": "File is too large. Max size is 5MB."}), 413
+    
+    
+    # Check if file hash already exists for this user in Supabase
+    try:
+        response = supabase.table('topics') \
+            .select('topic_id') \
+            .eq('user_id', user_id) \
+            .eq('hash_file', file_hash) \
+            .execute()
+        
+        if response.data and len(response.data) > 0:
+            # File already uploaded by this user
+            logging.info(f"Duplicate upload detected for user {user_id} with file hash {file_hash}")
+            return jsonify({"message": "You have already uploaded this file earlier."}), 409
+    except Exception as e:
+        logging.error(f"Error querying Supabase: {e}")
+        return jsonify({"error": "Internal server error checking uploads."}), 500
+
+    if  allowed_file(file.filename):
+        # Save file temporarily
+        if not os.path.exists(app.config['UPLOAD_FOLDER']):
+            os.makedirs(app.config['UPLOAD_FOLDER'])
+
+        temp_filename = f"{uuid.uuid4()}_{file.filename}"
+        temp_path = os.path.join(app.config['UPLOAD_FOLDER'], temp_filename)
+        file.save(temp_path)
+
+        # Process PDF for quiz topics and save them to Supabase
+        result = process_pdf_for_quiz(temp_path, GEMINI_API_KEY, user_id, supabase,file_hash)
+
+        # Clean up
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+            logging.info(f"🗑️ Deleted temporary file: {temp_path}")
+
+        if result and result.get("status") == "success":
+            return jsonify({"message": "Topics saved successfully."}), 200
+        else:
+            return jsonify({"error": "Failed to process PDF."}), 500
+
+    return jsonify({"error": "Invalid file type."}), 400
 
 @app.route('/ask', methods=['POST'])
 def ask():
@@ -356,13 +441,13 @@ def get_answer_from_file(user_query, user_id):
 
         relevant_docs = []
         for match in pinecone_results['matches']:
-            print(f"Metadata: {match['metadata']}")
-            file_uuid = match['metadata'].get("file_uuid")
-            full_text = fetch_full_text_from_supabase(supabase, file_uuid, user_id)
-            print(f"Full Text: {full_text}")
+            chunk_id = match['id']
+            chunk_data = fetch_chunk_text_from_supabase(supabase, chunk_id, user_id)
+
+        if chunk_data:
+            relevant_docs.append(chunk_data)
+            print(f"Chunk Text: {chunk_data}")
             
-        if full_text:
-            relevant_docs.append(full_text)
 
         if relevant_docs:
             # Concatenate or process relevant_docs as needed before LLM
@@ -389,6 +474,8 @@ def get_explanation_from_api(user_query):
     except Exception as e:
         logging.error(f"Error in get_explanation_from_api: {e}")
         return jsonify({"error": "Fallback failed"}), 500
+    
+
 
 # === Run App ===
 if __name__ == '__main__':
