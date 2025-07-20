@@ -28,7 +28,6 @@ const FileUpload = ({ onFileSelect }) => {
     // Optional: Notify UI that a file was picked
     if (onFileSelect) {
       onFileSelect(file);
-      return;
     }
 
     // Retrieve the user_id from localStorage (or any other method)
