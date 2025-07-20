@@ -21,22 +21,46 @@ def generate_uuid():
 # Prompt template for 10 MCQ questions generation
 prompt_template = PromptTemplate(
     input_variables=["content", "difficulty"],
-    template=(
-        "Based on the following content, generate exactly 10 multiple-choice questions.\n"
-        "Each question must have 4 options labeled A, B, C, and D.\n"
-        "Provide the correct answer letter for each question.\n"
-        "Make the questions {difficulty}.\n"
-        "Format output as:\n"
-        "Question 1: ...\n"
-        "A) ...\n"
-        "B) ...\n"
-        "C) ...\n"
-        "D) ...\n"
-        "Answer: [A-D]\n"
-        "... repeat for all 10 questions\n\n"
-        "Content:\n{content}\n"
+    template = """
+        You are an intelligent quiz generator.
+
+        Your task is to generate exactly 10 multiple-choice questions (MCQs) from the following content.
+
+        Instructions:
+        - Questions should match the difficulty level: {difficulty}.
+        - Questions should challenge the user's understanding, reasoning, or memory based on the content.
+        - However, each question and its options must be:
+        - Clearly written
+        - Easy to read and comprehend
+        - Focused on one idea at a time
+        - Free from ambiguous or overly complex phrasing
+        - If needed, use formatting like:
+        - Line breaks to separate question context and query
+        - Bullet points or short numbered steps
+        - Code snippets or math formatting for clarity
+
+        Bad Example:
+        ❌ "Which of the following is not unlikely to be dissimilar from the non-obvious behavior that contradicts the method pattern on Page 4?"
+
+        Good Example:
+        ✅ "Which of the following behaviors contradicts the expected behavior of the method described in the content?"
+
+        Question Format:
+        Question 1: [clear and understandable question]
+        A) [option A]
+        B) [option B]
+        C) [option C]
+        D) [option D]
+        Answer: [Letter] - [Correct Answer Text]
+
+        Repeat this format for all 10 questions.
+
+        Content:
+        {content}
+        """
+
     )
-)
+
 
 # Initialize LangChain LLM chain
 def get_llm_chain(gemini_api_key: str):

@@ -273,12 +273,12 @@ def ask():
         ]
 
         # If the user asks for a summary, trigger the summary function
-        # if any(re.search(r'\b' + re.escape(keyword) + r'\b', user_message, re.IGNORECASE) for keyword in summary_keywords):
-        #     return get_summary()
+        if any(re.search(r'\b' + re.escape(keyword) + r'\b', user_message, re.IGNORECASE) for keyword in summary_keywords):
+            return get_summary()
 
         # # If the user asks to generate questions, trigger question generation
-        # elif any(re.search(r'\b' + re.escape(keyword) + r'\b', user_message, re.IGNORECASE) for keyword in question_keywords):
-        #     return generate_questions()
+        elif any(re.search(r'\b' + re.escape(keyword) + r'\b', user_message, re.IGNORECASE) for keyword in question_keywords):
+            return generate_questions()
 
         # For any other question, perform similarity search and provide an answer
         return get_answer_from_file(user_message, user_id)
@@ -291,6 +291,8 @@ def ask():
 def get_summary():
     try:
         global recent_file_uid
+        print("Summary function called")
+        print("file_uid:", recent_file_uid)
 
         if not recent_file_uid:
             return jsonify({"error": "No recent file uploaded"}), 400
@@ -325,9 +327,6 @@ def get_summary():
         summary = llm.predict(prompt)
         summary = summary.strip()
 
-        # Save summary to the first document row associated with this file
-        first_id = docs[0]['id']
-        supabase.table("documents").update({"summary": summary}).eq("id", first_id).execute()
 
         # Optional: log the interaction
         insert_chat_log("Summarize Request", summary)
@@ -340,6 +339,8 @@ def get_summary():
 
 def generate_questions():
     global recent_file_uid
+    print("file_uid:", recent_file_uid)
+    print("Generate questions function called")
     try:
         if not recent_file_uid:
             return jsonify({"error": "No recent file uploaded"}), 400
@@ -407,6 +408,7 @@ def get_answer_from_file(user_query, user_id):
         # user_id = request.json.get("user_id")
         userID=user_id;
         userQuery= user_query;
+        print("get_answer_from_file called with user_query:", user_query, "and user_id:", user_id)
 
         if not user_query or not user_id:
             return jsonify({"error": "Missing user_query or user_id"}), 400

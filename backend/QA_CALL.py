@@ -2,7 +2,7 @@ from QA_ANSWER import generate_and_save_mcqs
 if __name__ == "__main__":
     import os
 
-    TOPIC_ID = "fe0f16a0-735f-4154-ba13-cd9a91cdf798"
+    TOPIC_ID = "3c2787be-56c2-45db-a577-552d1de5a6db"
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")  # set your key here
 
     try:
