@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify, session
-from flask_cors import CORS
+from flask_cors import CORS, cross_origin
+from flask import make_response
 import os
 import logging
 import re
@@ -20,7 +21,8 @@ from langchain_pinecone import PineconeVectorStore
 from fetch_text_supabase import fetch_chunk_text_from_supabase
 from langchain.schema import HumanMessage
 from process_pdf_for_quiz import process_pdf_for_quiz
-
+from QA_ANSWER import generate_and_save_mcqs
+from matching_q_a import evaluate_and_save_quiz
 
 
 # === Load Environment Variables ===
@@ -37,17 +39,19 @@ logging.basicConfig(level=logging.DEBUG)
 
 # === Initialize Flask App ===
 app = Flask(__name__)
-CORS(app)
 app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5MB
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 CORS(app, resources={
-    r"/chat": {"origins": "http://localhost:5173", "methods": ["POST"]},
-    r"/upload": {"origins": "http://localhost:5173", "methods": ["POST"]},
-    r"/ask": {"origins": "http://localhost:5173", "methods": ["POST"]},
-    r"/quiz-question": {"origins": "http://localhost:5173", "methods": ["POST"]},
-})
+    r"/chat": {"origins": "http://localhost:5173", "methods": ["POST", "OPTIONS"]},
+    r"/upload": {"origins": "http://localhost:5173", "methods": ["POST", "OPTIONS"]},
+    r"/ask": {"origins": "http://localhost:5173", "methods": ["POST", "OPTIONS"]},
+    r"/quiz-question": {"origins": "http://localhost:5173", "methods": ["POST", "OPTIONS"]},
+    r"/generate-questions": {"origins": "http://localhost:5173", "methods": ["POST", "OPTIONS"]},
+    r"/submit-answers": {"origins": "http://localhost:5173", "methods": ["POST", "OPTIONS"]},
+    
+}, supports_credentials=True)
 
 # === Initialize Supabase & Langchain Models ===
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -184,7 +188,7 @@ def upload_file():
     return jsonify({"error": "Invalid file type"}), 400
 
 
-
+# topic jsx route
 @app.route('/quiz-question', methods=['POST'])
 def quiz_question():
     user_id = request.form.get("user_id")
@@ -242,6 +246,83 @@ def quiz_question():
 
     return jsonify({"error": "Invalid file type."}), 400
 
+# exam route
+@app.route("/generate-questions", methods=['POST', 'OPTIONS'])
+def generate_questions():
+    if request.method == 'OPTIONS':
+        # Respond to preflight CORS request
+        response = make_response()
+        response.headers.add("Access-Control-Allow-Origin", "http://localhost:5173")
+        response.headers.add("Access-Control-Allow-Headers", "Content-Type")
+        response.headers.add("Access-Control-Allow-Methods", "POST, OPTIONS")
+        return response, 204
+
+    data = request.get_json()
+    topic_id = data.get("topic_id")
+    difficulty = data.get("difficulty_mode", "hard")
+
+    try:
+        questions = generate_and_save_mcqs(topic_id, GEMINI_API_KEY, difficulty)
+
+        # Strip correct_answer for frontend
+        questions_for_frontend = [
+            {   
+                "question_id": q["question_id"],  
+                "question_text": q["question_text"],
+                "options": q["options"]
+            }
+            for q in questions
+        ]
+
+        response = jsonify({"questions": questions_for_frontend})
+        response.headers.add("Access-Control-Allow-Origin", "http://localhost:5173")
+        return response, 200
+    except Exception as e:
+        response = jsonify({"error": str(e)})
+        response.headers.add("Access-Control-Allow-Origin", "http://localhost:5173")
+        return response, 500
+
+@app.route("/submit-answers", methods=["POST", "OPTIONS"])
+@cross_origin()  # Add this decorator
+def submit_answers():
+    if request.method == "OPTIONS":
+        response = make_response()
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+        return response
+
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Missing JSON payload"}), 400
+
+        user_id = data.get("user_id")
+        topic_id = data.get("topic_id")
+        submitted_answers = data.get("submitted_answers")
+
+        if not user_id or not topic_id or not submitted_answers:
+            return jsonify({"error": "Missing one or more required fields: user_id, topic_id, submitted_answers"}), 400
+
+        # Validate each answer object has a 'question_id' and 'selected_answer'
+        for ans in submitted_answers:
+            if not isinstance(ans, dict):
+                return jsonify({"error": "Invalid answer format. Each answer must be an object."}), 400
+            if "question_id" not in ans or "selected_answer" not in ans:
+                return jsonify({"error": "Each answer must include 'question_id' and 'selected_answer'"}), 400
+
+        result = evaluate_and_save_quiz(user_id, topic_id, submitted_answers)
+
+        return jsonify({"message": "Quiz submitted successfully", "result": result}), 200
+
+    except Exception as e:
+        logging.exception("Error while processing submitted answers")
+        return jsonify({"error": str(e)}), 500
+    
+if __name__ == "__main__":
+    app.run(debug=True, port=5000)
+
+# chat mode route
 @app.route('/ask', methods=['POST'])
 def ask():
     try:

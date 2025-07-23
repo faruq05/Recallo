@@ -4,9 +4,8 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPlus } from "@fortawesome/free-solid-svg-icons";
 import { Tooltip } from "bootstrap";
 
-const FileUpload = ({ onFileSelect }) => {
+const FileUpload = ({ onFileSelect, disableDefaultUpload = false }) => {
   useEffect(() => {
-    // Activate all tooltips on the page
     const tooltipTriggerList = document.querySelectorAll(
       '[data-bs-toggle="tooltip"]'
     );
@@ -14,37 +13,36 @@ const FileUpload = ({ onFileSelect }) => {
       new Tooltip(tooltipTriggerEl);
     });
   }, []);
+
   const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB size limit
+
   const handleFileChange = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
 
-    // Check file size
     if (file.size > MAX_FILE_SIZE) {
       alert("File size exceeds the 5MB limit.");
       return;
     }
 
-    // Optional: Notify UI that a file was picked
     if (onFileSelect) {
       onFileSelect(file);
     }
 
-    // Retrieve the user_id from localStorage (or any other method)
-    const userId = localStorage.getItem("userId"); // Assuming user_id is saved in localStorage
+    if (disableDefaultUpload) {
+      return; // ❌ Skip default upload if disabled
+    }
 
-    // Check if userId is available
+    const userId = localStorage.getItem("userId");
     if (!userId) {
       console.error("User ID is not available.");
       return;
     }
 
-    // 🔥 Send to Flask backend
-    // Create FormData to send the file and user_id
     const formData = new FormData();
-    formData.append("file", file); // Append the file
-    formData.append("user_id", userId); // Append the user_id to the FormData
-    formData.append("message", "File upload with user_id!"); // Example additional field
+    formData.append("file", file);
+    formData.append("user_id", userId);
+    formData.append("message", "File upload with user_id!");
 
     try {
       const res = await fetch("http://127.0.0.1:5000/upload", {
@@ -77,9 +75,13 @@ const FileUpload = ({ onFileSelect }) => {
 
   return (
     <>
-      <label htmlFor="file-upload" className="upload-icon chat_ic" data-bs-toggle="tooltip"
+      <label
+        htmlFor="file-upload"
+        className="upload-icon chat_ic"
+        data-bs-toggle="tooltip"
         data-bs-placement="top"
-        title="Allowed formats: PDF, DOC, DOCX, TXT. Max size: 5 MB.">
+        title="Allowed formats: PDF, DOC, DOCX, TXT. Max size: 5 MB."
+      >
         <FontAwesomeIcon
           icon={faPlus}
           style={{ color: "#ffffff", cursor: "pointer" }}
@@ -97,71 +99,3 @@ const FileUpload = ({ onFileSelect }) => {
 };
 
 export default FileUpload;
-
-
-// import React from "react";
-// import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-// import { faPlus } from "@fortawesome/free-solid-svg-icons";
-
-// const FileUpload = ({ uploadTarget, inputId }) => {
-//   const handleFileChange = async (event) => {
-//     const file = event.target.files[0];
-//     if (!file) return;
-
-//     const MAX_FILE_SIZE = 5 * 1024 * 1024;
-//     if (file.size > MAX_FILE_SIZE) {
-//       alert("File size exceeds 5MB.");
-//       return;
-//     }
-
-//     const userId = localStorage.getItem("userId");
-//     if (!userId) {
-//       alert("User ID missing.");
-//       return;
-//     }
-
-//     const formData = new FormData();
-//     formData.append("file", file);
-//     formData.append("user_id", userId);
-
-//     try {
-//       const response = await fetch(`http://127.0.0.1:5000${uploadTarget}`, {
-//         method: "POST",
-//         body: formData,
-//       });
-
-//       const data = await response.json();
-//       if (response.ok) {
-//         alert(`✅ Uploaded successfully to ${uploadTarget}`);
-//         console.log(data);
-//       } else {
-//         alert(`❌ Upload failed: ${data.message || data.error}`);
-//       }
-//     } catch (err) {
-//       console.error("❌ Upload error:", err);
-//       alert("Upload error");
-//     }
-//   };
-
-//   return (
-//     <>
-//       <input
-//         type="file"
-//         id={inputId}
-//         accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp"
-//         style={{ display: "none" }}
-//         onChange={handleFileChange}
-//       />
-//       <label htmlFor={inputId} className="upload-icon chat_ic" data-bs-toggle="tooltip"
-//         data-bs-placement="top"
-//         title="Allowed formats: PDF, DOC, DOCX, TXT. Max size: 5 MB.">
-//         <FontAwesomeIcon
-//           icon={faPlus}
-//           style={{ color: "#ffffff", cursor: "pointer" }}
-//         />
-//       </label>
-//     </>
-//   );
-// };
-
-// export default FileUpload;

@@ -133,6 +133,18 @@ canvas {
   display: block;
 }
 
+.edit-icon{
+  transition: all 0.3s ease;
+}
+
+.edit-icon:hover {
+  color: var(--cs-hover)!important;
+  transform: scale(1.08);
+}
+
+.chat-content{
+  overflow-y: auto;
+}
 
 /* custom css */
 /* header */
@@ -545,4 +557,24 @@ white-space: nowrap;
 
 .marks_progress button:focus{
   border-color: #fff!important;
+}
+
+.badge {
+  border:1px solid var(--cs-primary);
+  padding: 5px 10px;
+  color: var(--cs-white);
+  margin-bottom: 15px;
+  font-weight: 400;
+}
+
+.badge-weak {
+  border-color: #dc3545; /* Bootstrap red */
+  padding: 5px 10px;
+  color: white;
+}
+
+.badge-completed {
+  border-color: #28a745; /* Bootstrap green */
+  padding: 5px 10px;
+  color: white;
 }

@@ -107,7 +107,7 @@ def process_pdf_for_quiz(file_path, gemini_api_key, user_id, supabase,file_hash)
                 "document_for_quiz_id": file_uuid,
                 "title": topic_title,
                 "merged_content": merged_content,
-                "topic_status": "Covered Topics",
+                "topic_status": "Ongoing Topics",
                 "file_name": file_name,
                 "hash_file": file_hash
             })

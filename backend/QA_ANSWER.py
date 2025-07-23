@@ -6,6 +6,7 @@ from supabase import create_client, Client
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
+from datetime import datetime
 
 # Initialize Supabase client
 load_dotenv()
@@ -112,16 +113,24 @@ def generate_and_save_mcqs(topic_id: str, gemini_api_key: str, difficulty_mode: 
     if len(questions) < 10:
         raise Exception("Failed to generate 10 questions")
 
-    # Save questions to Supabase
+    # Save questions to Supabase and collect full data to return
+    saved_questions = []
+
     for q in questions:
-        insert_res = supabase.table("quiz_questions").insert({
-            "question_id": generate_uuid(),
-            "concept_id": topic_id,  # Assuming topic_id maps to concept_id here
+        qid = generate_uuid()
+        supabase.table("quiz_questions").insert({
+            "question_id": qid,
+            "concept_id": topic_id,
             "prompt": q["question_text"],
             "answer": q["correct_answer"],
-            "created_at": None  # default now()
+            "created_at": datetime.now().isoformat()
         }).execute()
 
-        
+        saved_questions.append({
+            "question_id": qid,
+            "question_text": q["question_text"],
+            "options": q["options"],  # assuming parse_mcq_response includes this
+            "correct_answer": q["correct_answer"],
+        })
 
-    return questions
+    return saved_questions
