@@ -8,7 +8,7 @@ import { MessageCircle } from "lucide-react";
 const menuItems = [
   { icon: <ListTodo />, label: "To-Do List", path: "/todo" },
   { icon: <FileSliders />, label: "Your Resources", path: "/resources" },
-  { icon: <ListTree />, label: "Covered Topics", path: "/topics" },
+  { icon: <ListTree />, label: "Create Topics", path: "/topics" },
   { icon: <ShieldAlert />, label: "Weak Areas", path: "/weak-areas" },
   { icon: <ChartPie />, label: "Progress", path: "/progress" },
   { icon: <BookOpenCheck />, label: "Exams", path: "/exam" },

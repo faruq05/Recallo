@@ -1,5 +1,4 @@
-// Progress.jsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Sidebar from "../components/Sidebar";
 import History from "../components/History";
 import useSession from "../utils/useSession";
@@ -11,6 +10,7 @@ import "bootstrap/dist/css/bootstrap.min.css";
 const Progress = () => {
   const {
     user,
+    userId,
     isLoggedIn,
     isSidebarOpen,
     isHistoryOpen,
@@ -19,6 +19,32 @@ const Progress = () => {
   } = useSession();
 
   const [expandedTopics, setExpandedTopics] = useState({});
+  const [progressData, setProgressData] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProgress = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch(`http://localhost:5000/api/progress/${userId}`);
+        if (response.ok) {
+          const data = await response.json();
+          setProgressData(data);
+        } else {
+          console.error("Error fetching progress:", response.statusText);
+          setProgressData([]);
+        }
+      } catch (error) {
+        console.error("Error fetching progress:", error.message);
+        setProgressData([]);
+      }
+      setLoading(false);
+    };
+
+    if (userId) {
+      fetchProgress();
+    }
+  }, [userId]);
 
   const toggleHistoryView = (topicId) => {
     setExpandedTopics((prev) => ({
@@ -27,40 +53,42 @@ const Progress = () => {
     }));
   };
 
-  const topicResults = [
-    {
-      topicId: "t1",
-      fileName: "EEE 111 lab manual (1–7).pdf",
-      topicTitle: "Photosynthesis",
-      latestScore: 7,
-      history: [
-        { score: 7, timestamp: "2024-07-01 14:10" },
-        { score: 5, timestamp: "2024-06-25 11:00" },
-        { score: 6, timestamp: "2024-06-20 16:40" },
-      ],
-    },
-    {
-      topicId: "t2",
-      fileName: "EEE 111 lab manual (1–7).pdf",
-      topicTitle: "Cell Division",
-      latestScore: 8,
-      history: [
-        { score: 6, timestamp: "2024-06-22 13:30" },
-        { score: 8, timestamp: "2024-06-30 09:15" },
-      ],
-    },
-  ];
+  const formatTimestamp = (timestamp) => {
+    if (!timestamp) return "";
+    const date = new Date(timestamp);
+    return date.toLocaleString();
+  };
 
-  const groupedTopics = topicResults.reduce((acc, curr) => {
+  // Transform the API data to match the frontend structure
+ const transformData = (data) => {
+  return data.map((item, index) => {
+    // Get the latest attempt (last item in chronologically sorted array)
+    const attemptHistory = item.attempt_history || [];
+    const latestAttempt = attemptHistory[attemptHistory.length - 1] || {};
+
+    return {
+      topicId: item.topic_id || `t${index + 1}`,
+      fileName: item.file_name || "Document",
+      topicTitle: item.topic_title || `Topic ${index + 1}`,
+      latestScore: item.latest_score || latestAttempt.score || 0, // Use backend's latest_score first
+      latestAttemptNumber: latestAttempt.attempt_number || (item.total_attempts || 0),
+      totalAttempts: item.total_attempts || 1,
+      overallProgress: item.overall_progress_percent || 0,
+      history: attemptHistory.slice().reverse() // Reverse for display (newest first)
+    };
+  });
+};
+  const transformedData = transformData(progressData);
+  
+  const groupedTopics = transformedData.reduce((acc, curr) => {
     if (curr.latestScore === null) return acc;
     if (!acc[curr.fileName]) acc[curr.fileName] = [];
     acc[curr.fileName].push(curr);
     return acc;
   }, {});
 
-  //   if no exam given print a message
   const hasResults = Object.keys(groupedTopics).length > 0;
-  
+
   return (
     <div className="chat chat-wrapper d-flex min-vh-100">
       <div className={`sidebar-area ${isSidebarOpen ? "open" : "collapsed"}`}>
@@ -81,11 +109,15 @@ const Progress = () => {
 
       <div className="chat-content flex-grow-1 p-4 text-white">
         <div className="container text-center mb-4 mt-4">
-          <h2 className="grad_text">Upload Your Files</h2>
+          <h2 className="grad_text">Your Progress Overview</h2>
         </div>
 
         <div className="container">
-          {!hasResults ? (
+          {loading ? (
+            <div className="d-flex justify-content-center align-items-center" style={{ height: "150px" }}>
+              <div className="spinner-border text-primary" role="status" />
+            </div>
+          ) : !hasResults ? (
             <div className="text-center mt-5">
               <h5 className="text-warning">
                 📌 Take exams for progress overview
@@ -108,14 +140,16 @@ const Progress = () => {
                           </h5>
                           <div className="my-3" style={{ width: 60 }}>
                             <CircularProgressbar
-                              value={topic.latestScore * 10}
-                              text={`${topic.latestScore}/10`}
+                              value={(topic.latestScore / 10) * 100}
+                              text={`${topic.latestScore.toFixed(1)}/10`}
                               styles={buildStyles({
                                 textColor: "white",
                                 pathColor:
                                   topic.latestScore >= 8
                                     ? "#28a745"
-                                    : "#ffc107",
+                                    : topic.latestScore >= 6
+                                    ? "#ffc107"
+                                    : "#dc3545",
                                 trailColor: "#444",
                               })}
                             />
@@ -136,45 +170,45 @@ const Progress = () => {
                             {expandedTopics[topic.topicId] && (
                               <div className="mt-2">
                                 {topic.history.length > 0 &&
-                                  topic.history.map((entry, i) => {
-                                    const prev = topic.history[i - 1]?.score;
-                                    const delta =
-                                      prev !== undefined
-                                        ? entry.score - prev
-                                        : 0;
-                                    const trend =
-                                      delta > 0 ? (
-                                        <span className="text-success">
-                                          +{delta} ↑
-                                        </span>
-                                      ) : delta < 0 ? (
-                                        <span className="text-danger">
-                                          {delta} ↓
-                                        </span>
-                                      ) : (
-                                        <span className="text-secondary">
-                                          0 →
-                                        </span>
-                                      );
+                                  topic.history.map((attempt, i) => {
+                                    const isFirst = i === topic.history.length - 1; // Last item is first attempt
+                                    const isLatest = i === 0; // First item is latest attempt
+                                    const improvement = attempt.improvement !== null ? attempt.improvement : 0;
+
                                     return (
                                       <div key={i} className="marks_hitory">
                                         <div className="d-flex justify-content-between test_details_progress">
-                                          <strong>Test {i + 1}</strong>
+                                          <strong>
+                                            Test {attempt.attempt_number || i + 1}
+                                            
+                                          </strong>
                                           <span className="text-muted small">
-                                            {entry.timestamp}
+                                            {formatTimestamp(attempt.submitted_at)}
                                           </span>
                                         </div>
                                         <div className="d-flex justify-content-between align-items-center mt-2">
                                           <span>
-                                            <strong>{entry.score}/10</strong> (
-                                            {trend})
+                                            <strong>{attempt.score}/10</strong> (
+                                            {improvement > 0 ? (
+                                              <span className="text-success">
+                                                +{improvement.toFixed(1)} ↑
+                                              </span>
+                                            ) : improvement < 0 ? (
+                                              <span className="text-danger">
+                                                {improvement.toFixed(1)} ↓
+                                              </span>
+                                            ) : (
+                                              <span className="text-secondary">
+                                                {isFirst ? "First attempt" : "0 →"}
+                                              </span>
+                                            )})
                                           </span>
                                           <button
                                             className="btn btn-sm btn-answer"
                                             onClick={() =>
                                               alert(
                                                 `Redirect to review of Test ${
-                                                  i + 1
+                                                  attempt.attempt_number || i + 1
                                                 }`
                                               )
                                             }

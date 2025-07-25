@@ -50,6 +50,7 @@ CORS(app, resources={
     r"/quiz-question": {"origins": "http://localhost:5173", "methods": ["POST", "OPTIONS"]},
     r"/generate-questions": {"origins": "http://localhost:5173", "methods": ["POST", "OPTIONS"]},
     r"/submit-answers": {"origins": "http://localhost:5173", "methods": ["POST", "OPTIONS"]},
+    r"/api/progress/.*": {"origins": "http://localhost:5173", "methods": ["GET", "OPTIONS"]}  # <-- FIXED
     
 }, supports_credentials=True)
 
@@ -319,9 +320,6 @@ def submit_answers():
         logging.exception("Error while processing submitted answers")
         return jsonify({"error": str(e)}), 500
     
-if __name__ == "__main__":
-    app.run(debug=True, port=5000)
-
 # chat mode route
 @app.route('/ask', methods=['POST'])
 def ask():
@@ -558,8 +556,95 @@ def get_explanation_from_api(user_query):
         logging.error(f"Error in get_explanation_from_api: {e}")
         return jsonify({"error": "Fallback failed"}), 500
     
+@app.route("/api/progress/<user_id>", methods=["GET"])
+def get_user_progress(user_id):
+    try:
+        # Fetch all quiz attempts for the user
+        response = supabase.table("quiz_attempts")\
+            .select("topic_id, score, submitted_at")\
+            .eq("user_id", user_id)\
+            .order("submitted_at", desc=False)\
+            .execute()
 
+        if not response.data:
+            return jsonify([]), 200
+
+        attempts = response.data
+
+        # Group attempts by topic_id
+        topic_attempts_map = {}
+        for attempt in attempts:
+            topic_id = attempt["topic_id"]
+            topic_attempts_map.setdefault(topic_id, []).append({
+                "score": attempt["score"],
+                "submitted_at": attempt["submitted_at"]
+            })
+
+        # Fetch topic metadata
+        topic_ids = list(topic_attempts_map.keys())
+        topics_response = supabase.table("topics")\
+            .select("topic_id, title, file_name")\
+            .in_("topic_id", topic_ids)\
+            .execute()
+
+        topic_meta_map = {t["topic_id"]: t for t in topics_response.data} if topics_response.data else {}
+
+        # Prepare results
+        results = []
+
+        for topic_id, attempts_list in topic_attempts_map.items():
+            # Sort by submitted_at ascending (oldest first) for proper chronological order
+            sorted_attempts = sorted(attempts_list, key=lambda x: x["submitted_at"], reverse=False)
+
+            latest_score = sorted_attempts[-1]["score"]  # Last (most recent) attempt
+            previous_score = sorted_attempts[-2]["score"] if len(sorted_attempts) > 1 else None
+            first_score = sorted_attempts[0]["score"]   # First attempt
+
+
+            # Calculate different types of progress
+            progress_percent = None
+            overall_progress_percent = None
+
+            # Progress from previous attempt
+            if previous_score is not None and previous_score != 0:
+                progress_percent = round(((latest_score - previous_score) * 100.0 / previous_score), 2)
+
+            # Overall progress from first attempt
+            if len(sorted_attempts) > 1 and first_score != 0:
+                overall_progress_percent = round(((latest_score - first_score) * 100.0 / first_score), 2)
+
+            # Create history of all attempts for frontend
+            attempt_history = []
+            for i, attempt in enumerate(sorted_attempts):
+              attempt_history.append({
+                "attempt_number": i + 1,
+                "score": attempt["score"],
+                "submitted_at": attempt["submitted_at"],
+                "improvement": None if i == 0 else round(attempt["score"] - sorted_attempts[i-1]["score"], 2)
+            })
+
+
+            meta = topic_meta_map.get(topic_id, {})
+            results.append({
+                "user_id": user_id,
+                "topic_id": topic_id,
+                "topic_title": meta.get("title", f"Topic {topic_id}"),
+                "file_name": meta.get("file_name", "Unknown Document"),
+                "latest_score": latest_score,
+                "previous_score": previous_score,
+                "first_score": first_score,
+                "progress_percent": progress_percent,  # Progress from previous attempt
+                "overall_progress_percent": overall_progress_percent,  # Progress from first attempt
+                "total_attempts": len(sorted_attempts),
+                "attempt_history": attempt_history
+            })
+
+        return jsonify(results), 200
+
+    except Exception as e:
+        logging.error(f"Error fetching progress: {e}")
+        return jsonify({"error": "Failed to fetch progress"}), 500
 
 # === Run App ===
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, port=5000)
