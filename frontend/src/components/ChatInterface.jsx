@@ -10,6 +10,7 @@ import Typewriter from "./Typewriter";
 import ChatInput from "./ChatInput";
 import { createClient } from "@supabase/supabase-js";
 import RecalloVisual3D from "../components/RecalloVisual3D";
+import History from "./History";
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -22,20 +23,23 @@ const ChatInterface = () => {
   const [loading, setLoading] = useState(false);
   const [controller, setController] = useState(null);
   const [userId, setUserId] = useState(null);
-  const chatContainerRef = useRef(null);
-  const [useDocumentMode, setUseDocumentMode] = useState(false);
-
   const [user, setUser] = useState(null);
-  
-    useEffect(() => {
-      const fetchUser = async () => {
-        const { data, error } = await supabase.auth.getUser();
-        if (!error && data?.user) {
-          setUser(data.user);
-        }
-      };
-      fetchUser();
-    }, []);
+  const [useDocumentMode, setUseDocumentMode] = useState(false);
+  const chatContainerRef = useRef(null);
+
+  const [isHistoryOpen, setIsHistoryOpen] = useState(true);
+  const [currentConv, setCurrentConv] = useState(null);
+  const [conversations, setConversations] = useState([]);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      const { data, error } = await supabase.auth.getUser();
+      if (!error && data?.user) {
+        setUser(data.user);
+      }
+    };
+    fetchUser();
+  }, []);
 
   useEffect(() => {
     if (chatContainerRef.current) {
@@ -44,19 +48,88 @@ const ChatInterface = () => {
   }, [messages]);
 
   useEffect(() => {
-    // Get Supabase session and extract user_id
     const fetchSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
+      const { data: { session } } = await supabase.auth.getSession();
       if (session?.user?.id) {
         setUserId(session.user.id);
+        fetchConversations(session.user.id);
       }
     };
-
     fetchSession();
   }, []);
+
+  const fetchConversations = async (userId) => {
+    try {
+      const response = await fetch(`http://127.0.0.1:5000/api/conversations?user_id=${userId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setConversations(data);
+      }
+    } catch (error) {
+      console.error("Error fetching conversations:", error);
+    }
+  };
+
+  const handleNewConversation = async () => {
+    if (!userId) return null;
+    try {
+      const response = await fetch("http://127.0.0.1:5000/api/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId }),
+      });
+      if (response.ok) {
+        const newConversation = await response.json();
+        const newConvId = newConversation.conversation_id;
+        setCurrentConv(newConvId);
+        setMessages([]);
+        setConversations(prev => [newConversation, ...prev]);
+        return newConvId;
+      } else {
+        console.error("Failed to create new conversation");
+        return null;
+      }
+    } catch (error) {
+      console.error("Error creating new conversation:", error);
+      return null;
+    }
+  };
+
+  const handleDeleteAndStartNewChat = async (conversationId) => {
+    try {
+      await fetch(`http://127.0.0.1:5000/api/conversations/${conversationId}`, {
+        method: "DELETE",
+      });
+      setConversations(prev => prev.filter(c => c.conversation_id !== conversationId));
+      if (conversationId === currentConv) {
+        const newId = await handleNewConversation();
+        if (newId) {
+          setCurrentConv(newId);
+          setMessages([]);
+        }
+      }
+    } catch (err) {
+      console.error("Error deleting conversation:", err);
+    }
+  };
+
+  const handleSelectConversation = async (convId) => {
+    setCurrentConv(convId);
+    try {
+      const response = await fetch(`http://127.0.0.1:5000/api/conversations/${convId}/logs`);
+      if (response.ok) {
+        const logs = await response.json();
+        const convertedMessages = logs.flatMap((log, i) => [
+          { id: log.message_id ?? `u-${i}`, type: "user", text: log.user_message },
+          { id: log.message_id != null ? `a-${log.message_id}` : `a-${i}`, type: "ai", text: log.response_message }
+        ]);
+        setMessages(convertedMessages);
+      }
+    } catch (error) {
+      console.error("Error fetching messages:", error);
+      setMessages([]);
+    }
+  };
 
   const handleSend = async () => {
     if (input.trim() === "") return;
@@ -83,18 +156,27 @@ const ChatInterface = () => {
     setLoading(true);
 
     try {
-      const response = await fetch(
-        `http://127.0.0.1:5000/${useDocumentMode ? "ask" : "chat"}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: input, user_id: userId }),
-          signal: abortController.signal,
-        }
-      );
+      const requestBody = { message: input, user_id: userId };
+      if (currentConv) requestBody.conversation_id = currentConv;
+
+      const response = await fetch(`http://127.0.0.1:5000/${useDocumentMode ? "ask" : "chat"}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody),
+        signal: abortController.signal,
+      });
 
       const data = await response.json();
-      console.log("\ud83d\udce9 Full API Response:", data);
+
+      if (data.conversation_id && !currentConv) {
+        setCurrentConv(data.conversation_id);
+        setConversations(prev => [{
+          conversation_id: data.conversation_id,
+          title: "New Chat",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }, ...prev]);
+      }
 
       const aiReply = {
         id: Date.now() + 1,
@@ -112,8 +194,8 @@ const ChatInterface = () => {
         type: "ai",
         text:
           error.name === "AbortError"
-            ? "\u26a0\ufe0f Response stopped by user."
-            : "\u26a0\ufe0f Something went wrong. Please try again.",
+            ? "⚠️ Response stopped by user."
+            : "⚠️ Something went wrong. Please try again.",
       };
       setMessages((prev) =>
         prev.map((msg) => (msg.id === "loading-spinner" ? errorReply : msg))
@@ -130,7 +212,7 @@ const ChatInterface = () => {
       {
         id: Date.now(),
         type: "user",
-        text: `\ud83d\udcce Uploaded: ${file.name}`,
+        text: `📎 Uploaded: ${file.name}`,
       },
     ]);
   };
@@ -151,79 +233,62 @@ const ChatInterface = () => {
     setLoading(false);
   };
 
+  const isLastAiMessage = (index, msg) =>
+    msg.type === "ai" && index === messages.length - 1;
+
   return (
-    <div
-      className="chatinterface"
-      style={{ height: "100vh", display: "flex", flexDirection: "column" }}
-    >
-      <div
-        className="chat-response-section"
-        ref={chatContainerRef}
-        style={{
-          flexGrow: 1,
-          overflowY: "auto",
-          padding: "10px",
-          marginBottom: "50px",
-        }}
-      >
+    <div className="chatinterface" style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
+      <History
+        isLoggedIn={!!user}
+        isHistoryOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        userId={userId}
+        onSelectConversation={handleSelectConversation}
+        onNewConversation={handleNewConversation}
+        conversations={conversations}
+        onDeleteAndStartNewChat={handleDeleteAndStartNewChat}
+        currentConv={currentConv}
+        setCurrentConv={setCurrentConv}
+        setMessages={setMessages}
+      />
+
+      <div className="chat-response-section" ref={chatContainerRef} style={{ flexGrow: 1, overflowY: "auto", padding: "10px", marginBottom: "50px" }}>
         <div className="chat-header text-center mb-4">
           <RecalloVisual3D />
-          {/* <img
-            src={aivis}
-            alt="ai_visualiser"
-            className="img-fluid visual_img"
-          /> */}
-          <h2 className="grad_text mt-2">Hello
-                  {user?.user_metadata?.full_name
-                    ? `, ${user.user_metadata.full_name}`
-                    : ""}! Ask Recallo</h2>
+          <h2 className="grad_text mt-2">
+            Hello{user?.user_metadata?.full_name ? `, ${user.user_metadata.full_name}` : ""}! Ask Recallo
+          </h2>
         </div>
 
-        {messages.map((msg) => (
+        {messages.map((msg, index) => (
           <div key={msg.id} className={`chat-response ${msg.type}`}>
             {msg.type === "user" ? (
               <>
                 <p style={{ whiteSpace: "pre-wrap", marginBottom: 0 }}>
-                  <strong style={{ display: "block", marginBottom: "10px" }}>
-                    You:
-                  </strong>
+                  <strong style={{ display: "block", marginBottom: "10px" }}>You:</strong>
                   {msg.text}
                 </p>
                 <div className="message-actions d-flex mt-3">
-                  <button
-                    className="btn chat_ic me-2"
-                    onClick={() => handleEdit(msg.id)}
-                  >
-                    <FontAwesomeIcon
-                      icon={faPenToSquare}
-                      style={{ color: "#ffffff" }}
-                    />
+                  <button className="btn chat_ic me-2" onClick={() => handleEdit(msg.id)}>
+                    <FontAwesomeIcon icon={faPenToSquare} style={{ color: "#ffffff" }} />
                   </button>
                   <button className="btn chat_ic" onClick={handleStop}>
-                    <FontAwesomeIcon
-                      icon={faStop}
-                      style={{ color: "#ffffff" }}
-                    />
+                    <FontAwesomeIcon icon={faStop} style={{ color: "#ffffff" }} />
                   </button>
                 </div>
               </>
             ) : (
               <div>
                 <strong className="d-flex align-items-center mb-3 ai_response">
-                  <img
-                    src={aivis}
-                    alt="ai_visualiser"
-                    className="img-fluid visual_img rec_img"
-                  />
+                  <img src={aivis} alt="ai_visualiser" className="img-fluid visual_img rec_img" />
                   Recallo:
                 </strong>
                 {msg.isProcessing ? (
                   <div className="processing-spinner">
-                    <FontAwesomeIcon icon={faSpinner} spin /> Recallo is
-                    processing...
+                    <FontAwesomeIcon icon={faSpinner} spin /> Recallo is processing...
                   </div>
                 ) : (
-                  <Typewriter key={msg.id} text={msg.text} />
+                  <Typewriter key={msg.id} text={msg.text} shouldAnimate={isLastAiMessage(index, msg)} />
                 )}
               </div>
             )}

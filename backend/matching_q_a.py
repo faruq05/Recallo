@@ -38,6 +38,7 @@ def evaluate_and_save_quiz(user_id, topic_id, submitted_answers):
     for ans in submitted_answers:
         qid = ans["question_id"]
         selected = ans["selected_answer"]
+        
         correct = correct_answers_map.get(qid)
         is_correct = (selected == correct)
         if is_correct:
@@ -101,7 +102,7 @@ def evaluate_and_save_quiz(user_id, topic_id, submitted_answers):
             raise Exception("Failed to insert user topic progress into Supabase")
     else:
         # Existing progress found — update record
-        attempts_count = progress_res.get("attempts_count", 0) + 1
+        attempts_count = progress_res.model_dump().get("attempts_count", 0) + 1
         mastered = progress_res.data.get("mastered", False) or (score >= 7)
         update_res = supabase.table("user_topic_progress").update({
             "last_score": score,
