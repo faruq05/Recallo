@@ -516,6 +516,13 @@ white-space: nowrap;
   font-size: 30px;
 }
 
+.card-topic-summary{
+  padding: 12px!important;
+  background-color: transparent;
+  border: 1px solid var(--cs-border);
+  border-radius: 10px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1)!important;
+}
 
 /* progress page */
 

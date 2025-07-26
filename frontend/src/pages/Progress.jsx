@@ -21,12 +21,18 @@ const Progress = () => {
   const [expandedTopics, setExpandedTopics] = useState({});
   const [progressData, setProgressData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  //const [selectedAttempt, setSelectedAttempt] = useState(null);
+  const [analysisData, setAnalysisData] = useState([]);
+  const [loadingAnalysis, setLoadingAnalysis] = useState(false);
 
   useEffect(() => {
     const fetchProgress = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`http://localhost:5000/api/progress/${userId}`);
+        const response = await fetch(
+          `http://localhost:5000/api/progress/${userId}`
+        );
         if (response.ok) {
           const data = await response.json();
           setProgressData(data);
@@ -60,26 +66,27 @@ const Progress = () => {
   };
 
   // Transform the API data to match the frontend structure
- const transformData = (data) => {
-  return data.map((item, index) => {
-    // Get the latest attempt (last item in chronologically sorted array)
-    const attemptHistory = item.attempt_history || [];
-    const latestAttempt = attemptHistory[attemptHistory.length - 1] || {};
+  const transformData = (data) => {
+    return data.map((item, index) => {
+      // Get the latest attempt (last item in chronologically sorted array)
+      const attemptHistory = item.attempt_history || [];
+      const latestAttempt = attemptHistory[attemptHistory.length - 1] || {};
 
-    return {
-      topicId: item.topic_id || `t${index + 1}`,
-      fileName: item.file_name || "Document",
-      topicTitle: item.topic_title || `Topic ${index + 1}`,
-      latestScore: item.latest_score || latestAttempt.score || 0, // Use backend's latest_score first
-      latestAttemptNumber: latestAttempt.attempt_number || (item.total_attempts || 0),
-      totalAttempts: item.total_attempts || 1,
-      overallProgress: item.overall_progress_percent || 0,
-      history: attemptHistory.slice().reverse() // Reverse for display (newest first)
-    };
-  });
-};
+      return {
+        topicId: item.topic_id || `t${index + 1}`,
+        fileName: item.file_name || "Document",
+        topicTitle: item.topic_title || `Topic ${index + 1}`,
+        latestScore: item.latest_score || latestAttempt.score || 0, // Use backend's latest_score first
+        latestAttemptNumber:
+          latestAttempt.attempt_number || item.total_attempts || 0,
+        totalAttempts: item.total_attempts || 1,
+        overallProgress: item.overall_progress_percent || 0,
+        history: attemptHistory.slice().reverse(), // Reverse for display (newest first)
+      };
+    });
+  };
   const transformedData = transformData(progressData);
-  
+
   const groupedTopics = transformedData.reduce((acc, curr) => {
     if (curr.latestScore === null) return acc;
     if (!acc[curr.fileName]) acc[curr.fileName] = [];
@@ -88,6 +95,27 @@ const Progress = () => {
   }, {});
 
   const hasResults = Object.keys(groupedTopics).length > 0;
+
+  // handle answer for answer analysis
+  const handleAnswerAnalysis = async (topicId, attemptNumber) => {
+    setShowModal(true);
+    setLoadingAnalysis(true);
+    setAnalysisData([]);
+    try {
+      const response = await fetch(
+        `http://localhost:5000/api/answer-analysis?topic_id=${topicId}&attempt_number=${attemptNumber}&user_id=${userId}`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setAnalysisData(data.questions); // Expecting an array of objects
+      } else {
+        console.error("Error fetching analysis:", response.statusText);
+      }
+    } catch (err) {
+      console.error("Error fetching analysis:", err.message);
+    }
+    setLoadingAnalysis(false);
+  };
 
   return (
     <div className="chat chat-wrapper d-flex min-vh-100">
@@ -114,7 +142,10 @@ const Progress = () => {
 
         <div className="container">
           {loading ? (
-            <div className="d-flex justify-content-center align-items-center" style={{ height: "150px" }}>
+            <div
+              className="d-flex justify-content-center align-items-center"
+              style={{ height: "150px" }}
+            >
               <div className="spinner-border text-primary" role="status" />
             </div>
           ) : !hasResults ? (
@@ -171,24 +202,31 @@ const Progress = () => {
                               <div className="mt-2">
                                 {topic.history.length > 0 &&
                                   topic.history.map((attempt, i) => {
-                                    const isFirst = i === topic.history.length - 1; // Last item is first attempt
-                                    const isLatest = i === 0; // First item is latest attempt
-                                    const improvement = attempt.improvement !== null ? attempt.improvement : 0;
+                                    const isFirst =
+                                      i === topic.history.length - 1; // Last item is first attempt
+                                    //const isLatest = i === 0; // First item is latest attempt
+                                    const improvement =
+                                      attempt.improvement !== null
+                                        ? attempt.improvement
+                                        : 0;
 
                                     return (
                                       <div key={i} className="marks_hitory">
                                         <div className="d-flex justify-content-between test_details_progress">
                                           <strong>
-                                            Test {attempt.attempt_number || i + 1}
-                                            
+                                            Test{" "}
+                                            {attempt.attempt_number || i + 1}
                                           </strong>
                                           <span className="text-muted small">
-                                            {formatTimestamp(attempt.submitted_at)}
+                                            {formatTimestamp(
+                                              attempt.submitted_at
+                                            )}
                                           </span>
                                         </div>
                                         <div className="d-flex justify-content-between align-items-center mt-2">
                                           <span>
-                                            <strong>{attempt.score}/10</strong> (
+                                            <strong>{attempt.score}/10</strong>{" "}
+                                            (
                                             {improvement > 0 ? (
                                               <span className="text-success">
                                                 +{improvement.toFixed(1)} ↑
@@ -199,17 +237,17 @@ const Progress = () => {
                                               </span>
                                             ) : (
                                               <span className="text-secondary">
-                                                {isFirst ? "First attempt" : "0 →"}
+                                                {isFirst ? "0 →" : "0 →"}
                                               </span>
-                                            )})
+                                            )}
+                                            )
                                           </span>
                                           <button
                                             className="btn btn-sm btn-answer"
                                             onClick={() =>
-                                              alert(
-                                                `Redirect to review of Test ${
-                                                  attempt.attempt_number || i + 1
-                                                }`
+                                              handleAnswerAnalysis(
+                                                topic.topicId,
+                                                attempt.attempt_number || i + 1
                                               )
                                             }
                                           >
@@ -240,6 +278,88 @@ const Progress = () => {
           />
         </span>
       </div>
+
+      {/* modal */}
+      {showModal && (
+        <div className="modal show d-block" tabIndex="-1" role="dialog">
+          <div className="modal-dialog modal-lg" role="document">
+            <div className="modal-content bg-dark text-white">
+              <div className="modal-header">
+                <h5 className="modal-title">Answer Analysis</h5>
+                <button
+                  type="button"
+                  className="btn-close btn-close-white"
+                  aria-label="Close"
+                  onClick={() => setShowModal(false)}
+                ></button>
+              </div>
+              <div className="modal-body">
+                {loadingAnalysis ? (
+                  <div className="text-center">
+                    <div className="spinner-border text-light" role="status" />
+                  </div>
+                ) : analysisData.length === 0 ? (
+                  <p>No analysis data found.</p>
+                ) : (
+                  analysisData.map((q, index) => {
+                    //const isCorrect = q.selected_option === q.correct_option;
+
+                    return (
+                      <div
+                        key={q.question_id}
+                        className="mb-4 p-3 border rounded"
+                      >
+                        <p>
+                          <strong>Q{index + 1}:</strong> {q.question_text}
+                        </p>
+                        <ul className="list-group">
+                          {q.options.map((opt, i) => {
+                            const isSelected = opt.option === q.selected_option;
+                            const isCorrectOption =
+                              opt.option === q.correct_option;
+
+                            let className = "list-group-item";
+                            if (isCorrectOption && isSelected) {
+                              className += " list-group-item-success";
+                            } else if (isSelected && !isCorrectOption) {
+                              className += " list-group-item-danger";
+                            } else if (isCorrectOption) {
+                              className += " list-group-item-success";
+                            }
+
+                            return (
+                              <li key={i} className={className}>
+                                <strong>{opt.option}.</strong> {opt.option_text}
+                                {isSelected && (
+                                  <span className="ms-2 badge bg-light text-dark">
+                                    Your Answer
+                                  </span>
+                                )}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                        <div className="mt-2">
+                          <strong>Explanation:</strong> {q.explanation || "N/A"}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowModal(false)}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
