@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, session
 from flask_cors import CORS, cross_origin
 from flask import make_response
+import json
 import os
 import logging
 import re
@@ -50,7 +51,9 @@ CORS(app, resources={
     r"/quiz-question": {"origins": "http://localhost:5173", "methods": ["POST", "OPTIONS"]},
     r"/generate-questions": {"origins": "http://localhost:5173", "methods": ["POST", "OPTIONS"]},
     r"/submit-answers": {"origins": "http://localhost:5173", "methods": ["POST", "OPTIONS"]},
-    r"/api/progress/.*": {"origins": "http://localhost:5173", "methods": ["GET", "OPTIONS"]}  # <-- FIXED
+    r"/api/progress/.*": {"origins": "http://localhost:5173", "methods": ["GET", "OPTIONS"]},
+    r"/api/answer-analysis": {"origins": "http://localhost:5173", "methods": ["GET", "OPTIONS"]},
+    r"/*": {"origins": "*"}
     
 }, supports_credentials=True)
 
@@ -270,7 +273,10 @@ def generate_questions():
             {   
                 "question_id": q["question_id"],  
                 "question_text": q["question_text"],
-                "options": q["options"]
+                "options": q["options"],
+                "correct_answer": q.get("correct_answer"),
+                "answer_text": q.get("answer_text"), 
+                "explanation": q.get("explanation")
             }
             for q in questions
         ]
@@ -279,10 +285,13 @@ def generate_questions():
         response.headers.add("Access-Control-Allow-Origin", "http://localhost:5173")
         return response, 200
     except Exception as e:
+        import traceback
+        traceback.print_exc()  # <-- logs to terminal
         response = jsonify({"error": str(e)})
         response.headers.add("Access-Control-Allow-Origin", "http://localhost:5173")
         return response, 500
 
+# submit answer
 @app.route("/submit-answers", methods=["POST", "OPTIONS"])
 @cross_origin()  # Add this decorator
 def submit_answers():
@@ -319,7 +328,107 @@ def submit_answers():
     except Exception as e:
         logging.exception("Error while processing submitted answers")
         return jsonify({"error": str(e)}), 500
-    
+
+# answer analysis in progress jsx   
+@app.route("/api/answer-analysis")
+def get_answer_analysis():
+    topic_id = request.args.get("topic_id")
+    user_id = request.args.get("user_id")
+    attempt_number = request.args.get("attempt_number")
+
+    if not (topic_id and user_id and attempt_number):
+        return jsonify({"error": "Missing required parameters"}), 400
+
+    # Get all attempts for this user and topic, sorted by creation time ascending
+    attempts_resp = supabase.table("quiz_attempts") \
+        .select("attempt_id, submitted_at") \
+        .eq("topic_id", topic_id) \
+        .eq("user_id", user_id) \
+        .order("submitted_at") \
+        .execute()
+
+    attempts = attempts_resp.data
+    if not attempts:
+        return jsonify({"error": "No attempts found"}), 404
+
+    try:
+        attempt_idx = int(attempt_number) - 1
+        selected_attempt = attempts[attempt_idx]
+    except (IndexError, ValueError):
+        return jsonify({"error": "Invalid attempt number"}), 400
+
+    attempt_id = selected_attempt["attempt_id"]
+
+    # Fetch answers for this attempt, joining with quiz_questions for correct answers and explanations
+    # Since Supabase/PostgREST doesn't support direct joins, you may have to do two queries or use RPC
+
+    # Query quiz_answers for this attempt
+    answers_resp = supabase.table("quiz_answers") \
+        .select("question_id, selected_answer, is_correct") \
+        .eq("attempt_id", attempt_id) \
+        .execute()
+
+    answers = answers_resp.data or []
+
+    question_ids = [a["question_id"] for a in answers]
+    if not question_ids:
+        return jsonify({"error": "No answers found for this attempt"}), 404
+
+    # Fetch questions info
+    questions_resp = supabase.table("quiz_questions") \
+        .select("question_id, prompt, answer, answer_option_text, explanation") \
+        .in_("question_id", question_ids) \
+        .execute()
+
+    questions = questions_resp.data or []
+
+    # Combine answers and questions into a response format expected by frontend
+    analysis = []
+
+    # Parse answer_option_text and answer (which presumably hold the options & correct option)
+    # Let's assume answer_option_text is JSON or delimited string you parse here — adjust accordingly
+
+    for answer in answers:
+        q = next((item for item in questions if item["question_id"] == answer["question_id"]), None)
+        if not q:
+            continue
+
+        # Assuming q.answer is the correct option letter, e.g. "A"
+        # Assuming q.answer_option_text is a JSON string like [{"option": "A", "option_text": "Answer text"}, ...]
+        import json
+        try:
+            options = json.loads(q["answer_option_text"])
+        except Exception:
+            options = []
+
+        analysis.append({
+            "question_id": q["question_id"],
+            "question_text": q["prompt"],
+            "correct_option": q["answer"],
+            "explanation": q.get("explanation"),
+            "selected_option": answer["selected_answer"],
+            "options": options,
+        })
+
+    return jsonify({"questions": analysis})
+
+
+# Helper to convert 'A', 'B' etc. to option text
+def option_letter_to_text(letter, answer_option_text):
+    if not letter or not answer_option_text:
+        return ""
+
+    options = {}
+    for line in answer_option_text.strip().splitlines():
+        if "." in line:
+            parts = line.strip().split(".", 1)
+            if len(parts) == 2:
+                key = parts[0].strip().upper()
+                val = parts[1].strip()
+                options[key] = val
+
+    return options.get(letter.upper(), "")
+
 # chat mode route
 @app.route('/ask', methods=['POST'])
 def ask():

@@ -14,6 +14,8 @@ import ProgressBar from "react-bootstrap/ProgressBar";
 import "bootstrap/dist/css/bootstrap.min.css";
 import { createClient } from "@supabase/supabase-js";
 import { useNavigate } from "react-router-dom";
+import { ChevronDown, ChevronUp } from "lucide-react";
+import { ClockPlus } from 'lucide-react';
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -38,6 +40,13 @@ const Topics = () => {
   const [topics, setTopics] = useState([]);
   const [editingTopicId, setEditingTopicId] = useState(null);
   const [newTitle, setNewTitle] = useState("");
+  const [expandedSummaries, setExpandedSummaries] = useState({});
+  const toggleSummary = (topicId) => {
+    setExpandedSummaries((prev) => ({
+      ...prev,
+      [topicId]: !prev[topicId],
+    }));
+  };
 
   // const simulateProgress = () => {
   //   setUploading(true);
@@ -297,9 +306,9 @@ const Topics = () => {
                     <div className="col-sm-6 col-md-6 col-xl-4 mb-4" key={idx}>
                       <div className="card topic_card text-white">
                         <div className="card-body">
-                          <div className="topic_status">
+                          <div className="topic_status d-flex justify-content-between align-items-center mb-4">
                             <span
-                              className={`badge ${
+                              className={`badge m-0 ${
                                 topic.topic_status === "Weak"
                                   ? "badge-weak"
                                   : topic.topic_status === "Completed"
@@ -309,6 +318,10 @@ const Topics = () => {
                             >
                               {topic.topic_status}
                             </span>
+                            <p className="card-text d-flex align-items-center">
+                              <ClockPlus className="pe-1"/> {" "}
+                              {new Date(topic.created_at).toLocaleDateString()}
+                            </p>
                           </div>
                           <div className="d-flex justify-content-between align-items-start mb-2">
                             {editingTopicId === topic.topic_id ? (
@@ -352,12 +365,27 @@ const Topics = () => {
                               />
                             </div>
                           </div>
-                          <p className="card-text">
-                            Created At:{" "}
-                            {new Date(topic.created_at).toLocaleDateString()}
-                          </p>
+
+                          {/* Toggle Button with Arrow */}
                           <button
-                            className="btn btn-sm btn-cs"
+                            className="btn btn-sm btn-outline w-100 p-0 d-flex justify-content-between align-items-center text-white mt-2"
+                            onClick={() => toggleSummary(topic.topic_id)}
+                          >
+                            Topic Summary
+                            {expandedSummaries[topic.topic_id] ? (
+                              <ChevronUp size={16} />
+                            ) : (
+                              <ChevronDown size={16} />
+                            )}
+                          </button>
+
+                          {expandedSummaries[topic.topic_id] && (
+                            <div className="card-topic-summary text-white small mt-2">
+                              {topic.topic_summary || "No summary available."}
+                            </div>
+                          )}
+                          <button
+                            className="btn btn-sm btn-cs mt-4"
                             onClick={() => handleTakeExam(topic)}
                           >
                             Take Exam

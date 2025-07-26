@@ -39,6 +39,7 @@ prompt_template = PromptTemplate(
         - Line breaks to separate question context and query
         - Bullet points or short numbered steps
         - Code snippets or math formatting for clarity
+        - A one-line explanation of why that answer is correct, using: Explanation: [Your explanation]
 
         Bad Example:
         ❌ "Which of the following is not unlikely to be dissimilar from the non-obvious behavior that contradicts the method pattern on Page 4?"
@@ -53,6 +54,7 @@ prompt_template = PromptTemplate(
         C) [option C]
         D) [option D]
         Answer: [Letter] - [Correct Answer Text]
+        Explanation: Option B is correct because XYZ is defined as ABC in the text.
 
         Repeat this format for all 10 questions.
 
@@ -84,14 +86,20 @@ def parse_mcq_response(text: str):
         opts_match = re.findall(r"[A-D]\)\s*(.*)", q)
         options = opts_match if opts_match else []
 
-        ans_match = re.search(r"Answer:\s*\[?([A-D])\]?", q)
+        ans_match = re.search(r"Answer:\s*\[?([A-D])\]?\s*-\s*(.*)", q)
         correct_answer = ans_match.group(1) if ans_match else None
+        correct_text = ans_match.group(2).strip() if ans_match else ""
+
+        exp_match = re.search(r"Explanation:\s*(.*)", q)
+        explanation = exp_match.group(1).strip() if exp_match else "No explanation provided."
 
         if q_text and options and correct_answer:
             parsed_questions.append({
                 "question_text": q_text,
                 "options": options,
                 "correct_answer": correct_answer,
+                "correct_text": correct_text,
+                "explanation": explanation,
             })
     return parsed_questions
 
@@ -118,19 +126,29 @@ def generate_and_save_mcqs(topic_id: str, gemini_api_key: str, difficulty_mode: 
 
     for q in questions:
         qid = generate_uuid()
+        correct_index = ord(q["correct_answer"]) - ord('A')
+        correct_text = q["options"][correct_index] if 0 <= correct_index < len(q["options"]) else "N/A"
+
+        # Optional: Use a default explanation for now
+        explanation_text = f"The correct answer is option {q['correct_answer']} because it best reflects the core idea from the content."
+
         supabase.table("quiz_questions").insert({
             "question_id": qid,
             "concept_id": topic_id,
             "prompt": q["question_text"],
             "answer": q["correct_answer"],
+            "answer_option_text": q["correct_text"],
+            "explanation": q["explanation"],
             "created_at": datetime.now().isoformat()
         }).execute()
 
         saved_questions.append({
             "question_id": qid,
             "question_text": q["question_text"],
-            "options": q["options"],  # assuming parse_mcq_response includes this
+            "options": q["options"],
             "correct_answer": q["correct_answer"],
+            "answer_text": q["correct_text"],
+            "explanation": q["explanation"]
         })
 
     return saved_questions

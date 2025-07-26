@@ -87,7 +87,7 @@ def evaluate_and_save_quiz(user_id, topic_id, submitted_answers):
     print("progress_res:", progress_res)
     print("progress_res.data:", getattr(progress_res, 'data', None))
     
-    if progress_res is None:
+    if not progress_res or not getattr(progress_res, 'data', None):
     # No progress record found — insert new
         insert_progress_res = supabase.table("user_topic_progress").insert({
             "user_id": user_id,
@@ -102,8 +102,9 @@ def evaluate_and_save_quiz(user_id, topic_id, submitted_answers):
             raise Exception("Failed to insert user topic progress into Supabase")
     else:
         # Existing progress found — update record
-        attempts_count = progress_res.model_dump().get("attempts_count", 0) + 1
+        attempts_count = progress_res.data.get("attempts_count", 0) + 1
         mastered = progress_res.data.get("mastered", False) or (score >= 7)
+        
         update_res = supabase.table("user_topic_progress").update({
             "last_score": score,
             "attempts_count": attempts_count,
@@ -113,7 +114,15 @@ def evaluate_and_save_quiz(user_id, topic_id, submitted_answers):
 
         if not update_res or not update_res.data:
             raise Exception("Failed to update user topic progress in Supabase")
+        
+# 🔥 NOW update topic_status in topics based on score
+    new_status = "Completed" if score > 7 else "Weak"
+    status_update = supabase.table("topics").update({
+        "topic_status": new_status
+    }).eq("topic_id", topic_id).execute()
 
+    if not status_update or not status_update.data:
+        logging.warning(f"⚠️ Failed to update topic_status to '{new_status}' for topic {topic_id}")
 
     return {
         "score": score,
