@@ -15,7 +15,9 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import { createClient } from "@supabase/supabase-js";
 import { useNavigate } from "react-router-dom";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import { ClockPlus } from 'lucide-react';
+import { ClockPlus } from "lucide-react";
+import { FolderArchive } from 'lucide-react';
+
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -66,6 +68,7 @@ const Topics = () => {
       .from("topics")
       .select("*")
       .eq("user_id", userId)
+      .eq("archive_status", "not_archived") // exclude archived
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -228,6 +231,26 @@ const Topics = () => {
     }
   }, [userId]);
 
+  const handleArchiveFileTopics = async (fileName) => {
+    const confirmArchive = confirm(
+      `Are you sure you want to archive all topics under "${fileName}"?`
+    );
+    if (!confirmArchive) return;
+
+    const { error } = await supabase
+      .from("topics")
+      .update({ archive_status: "archived" })
+      .eq("file_name", fileName)
+      .eq("user_id", userId);
+
+    if (error) {
+      console.error("Failed to archive topics:", error.message);
+      alert("Failed to archive topics.");
+    } else {
+      fetchTopics(); // Refresh list after archiving
+    }
+  };
+
   return (
     <div className="chat chat-wrapper d-flex min-vh-100">
       {/* Sidebar and History */}
@@ -249,7 +272,7 @@ const Topics = () => {
       {/* Main Content */}
       <div className="chat-content flex-grow-1 p-4 text-white d-flex flex-column">
         {/* Header */}
-        <div className="container text-center mb-4">
+        <div className="container text-center mb-4 mt-4">
           <h2 className="grad_text">Upload Your PDF</h2>
         </div>
 
@@ -258,7 +281,7 @@ const Topics = () => {
           <div className="row justify-content-center mb-">
             <div className="col-xl-6 col-md-8">
               <div
-                className="border border-secondary rounded p-5 bg-secondary bg-opacity-25 d-flex flex-column align-items-center justify-content-center"
+                className="text-center border border-secondary rounded p-5 bg-secondary bg-opacity-25 d-flex flex-column align-items-center justify-content-center"
                 style={{ cursor: "pointer" }}
               >
                 <FileUpload
@@ -296,11 +319,19 @@ const Topics = () => {
                 return acc;
               }, {})
             ).map(([fileName, topicList], i) => (
-              <div className="mb-5" key={i}>
-                <h4 className="text-white mb-3">
-                  <PackageSearch className="me-2" />
-                  {fileName}
-                </h4>
+              <div className="mt-4" key={i}>
+                <div className="d-flex justify-content-between align-items-center mb-3">
+                  <h4 className="text-white mb-0">
+                    <PackageSearch className="me-2" />
+                    {fileName}
+                  </h4>
+                  <button
+                    className="btn btn-sm btn-answer"
+                    onClick={() => handleArchiveFileTopics(fileName)}
+                  >
+                    <FolderArchive /> Archieve Module
+                  </button>
+                </div>
                 <div className="row">
                   {topicList.map((topic, idx) => (
                     <div className="col-sm-6 col-md-6 col-xl-4 mb-4" key={idx}>
@@ -319,7 +350,7 @@ const Topics = () => {
                               {topic.topic_status}
                             </span>
                             <p className="card-text d-flex align-items-center">
-                              <ClockPlus className="pe-1"/> {" "}
+                              <ClockPlus className="pe-1" />{" "}
                               {new Date(topic.created_at).toLocaleDateString()}
                             </p>
                           </div>

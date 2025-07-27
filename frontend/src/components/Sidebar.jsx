@@ -1,5 +1,5 @@
 import React from "react";
-import { ListTodo, FileSliders, ListTree, ShieldAlert, ChartPie, BookOpenCheck, Settings, History, User } from 'lucide-react';
+import { ListTodo, FileSliders, ListTree, Notebook, ChartPie, BookOpenCheck, FolderArchive, History, User } from 'lucide-react';
 import recalloLogo from "../assets/recallo.png";
 import { Link, useLocation } from "react-router-dom"; // 👈 Import useLocation
 import { EqualApproximately } from "lucide-react";
@@ -9,10 +9,10 @@ const menuItems = [
   { icon: <ListTodo />, label: "To-Do List", path: "/todo" },
   { icon: <FileSliders />, label: "Your Resources", path: "/resources" },
   { icon: <ListTree />, label: "Create Topics", path: "/topics" },
-  { icon: <ShieldAlert />, label: "Weak Areas", path: "/weak-areas" },
+  { icon: <Notebook />, label: "Study Metrics", path: "/studymetrics" },
   { icon: <ChartPie />, label: "Progress", path: "/progress" },
   { icon: <BookOpenCheck />, label: "Exams", path: "/exam" },
-  { icon:  <Settings />, label: "Settings", path: "/settings" },
+  { icon:  <FolderArchive />, label: "Archive Topics", path: "/archive" },
 ];
 
 const Sidebar = ({

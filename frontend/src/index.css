@@ -69,6 +69,10 @@ h3 {
   color: var(--cs-white);
 }
 
+h4{
+  font-size: 30px;
+}
+
 p {
   font-size: 16px;
   font-weight: 400;
@@ -545,6 +549,16 @@ white-space: nowrap;
   color: var(--cs-black);
 }
 
+.btn-answer2{
+  background-color: #dc3545!important;
+  color: var(--cs-white);
+}
+
+.btn-answer2:hover{
+  background-color: #850915!important;
+  color: var(--cs-white)!important;
+}
+
 .btn-answer:hover{
   background-color: var(--cs-hover);
   color: var(--cs-black);
@@ -624,4 +638,61 @@ white-space: nowrap;
 /* Ensure modal appears above backdrop */
 .modal {
   z-index: 1050;
+}
+
+
+/* archive page */
+.no_archive{
+  min-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center!important;
+  align-items: center;
+  text-align: center;
+}
+
+.no_arcicon{
+  display: block;
+  max-width: 300px!important;
+  height: 80px;
+  margin-bottom: 20px;
+  margin: auto;
+}
+
+.archieve_topic{
+  background-color: transparent;
+  border: 1px solid var(--cs-border);
+  padding: 10px;
+  color: #fff;
+  padding: 15px;
+}
+
+.arch_grp{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.arch_indbtn{
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.arch_grp button{
+  width: 100%;
+}
+
+/* study metrics */
+.alert-metrics{
+  background-color: var(--cs-matblack);
+  color: var(--cs-white);
+  padding: 20px;
+  border-radius: 10px;
+  text-align: center;
+}
+
+.metric-card{
+  box-shadow: 0 20px 12px -12px rgba(0, 0, 0, 0.1);
 }

@@ -33,6 +33,12 @@
     width: 80%;
 }
 
+.arch_grp{
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 }
 
 @media(max-width:767px) {

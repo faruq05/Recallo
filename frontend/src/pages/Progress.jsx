@@ -6,6 +6,8 @@ import { EqualApproximately, ChevronDown, ChevronUp } from "lucide-react";
 import { CircularProgressbar, buildStyles } from "react-circular-progressbar";
 import "react-circular-progressbar/dist/styles.css";
 import "bootstrap/dist/css/bootstrap.min.css";
+import { PackageSearch } from 'lucide-react';
+import GraphAnalysis from "../components/GraphAnalysis";
 
 const Progress = () => {
   const {
@@ -186,11 +188,12 @@ const Progress = () => {
               <div key={fileName} className="mb-5">
                 <h4 className="text-white mb-3">
                   <i className="bi bi-file-earmark-text me-2"></i>
-                  {fileName}
+                  <PackageSearch className="me-2" />{fileName}
                 </h4>
                 <div className="row">
                   {topics.map((topic, idx) => (
                     <div className="col-md-6 col-xl-4 mb-4" key={idx}>
+                      {/* <GraphAnalysis topicTitle={topic.topicTitle} history={topic.history} /> */}
                       <div className="card topic_card text-white">
                         <div className="card-body">
                           <h5 className="card-title mb-1">
