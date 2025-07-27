@@ -339,15 +339,15 @@ def get_answer_analysis():
     if not (topic_id and user_id and attempt_number):
         return jsonify({"error": "Missing required parameters"}), 400
 
-    # Get all attempts for this user and topic, sorted by creation time ascending
+    # Get all attempts for this user and topic
     attempts_resp = supabase.table("quiz_attempts") \
-        .select("attempt_id, submitted_at") \
+        .select("attempt_id, submitted_at, score") \
         .eq("topic_id", topic_id) \
         .eq("user_id", user_id) \
         .order("submitted_at") \
         .execute()
-
     attempts = attempts_resp.data
+
     if not attempts:
         return jsonify({"error": "No attempts found"}), 404
 
@@ -359,15 +359,11 @@ def get_answer_analysis():
 
     attempt_id = selected_attempt["attempt_id"]
 
-    # Fetch answers for this attempt, joining with quiz_questions for correct answers and explanations
-    # Since Supabase/PostgREST doesn't support direct joins, you may have to do two queries or use RPC
-
-    # Query quiz_answers for this attempt
+    # Fetch answers for this attempt (including selected_answer_text)
     answers_resp = supabase.table("quiz_answers") \
-        .select("question_id, selected_answer, is_correct") \
+        .select("question_id, selected_answer, selected_answer_text, is_correct") \
         .eq("attempt_id", attempt_id) \
         .execute()
-
     answers = answers_resp.data or []
 
     question_ids = [a["question_id"] for a in answers]
@@ -379,39 +375,54 @@ def get_answer_analysis():
         .select("question_id, prompt, answer, answer_option_text, explanation") \
         .in_("question_id", question_ids) \
         .execute()
-
     questions = questions_resp.data or []
 
-    # Combine answers and questions into a response format expected by frontend
     analysis = []
-
-    # Parse answer_option_text and answer (which presumably hold the options & correct option)
-    # Let's assume answer_option_text is JSON or delimited string you parse here — adjust accordingly
 
     for answer in answers:
         q = next((item for item in questions if item["question_id"] == answer["question_id"]), None)
         if not q:
             continue
 
-        # Assuming q.answer is the correct option letter, e.g. "A"
-        # Assuming q.answer_option_text is a JSON string like [{"option": "A", "option_text": "Answer text"}, ...]
-        import json
+        # Initialize defaults
+        correct_option = q["answer"]
+        selected_option = answer["selected_answer"]
+        correct_option_text = ""
+        selected_option_text = answer.get("selected_answer_text", "")
+        options = {}
+
         try:
-            options = json.loads(q["answer_option_text"])
-        except Exception:
-            options = []
+            if q["answer_option_text"]:
+                options = json.loads(q["answer_option_text"])
+                # Get correct option text from the JSON
+                correct_option_text = options.get(correct_option, "")
+                
+                # If selected_answer_text wasn't stored, get it from options
+                if not selected_option_text and selected_option:
+                    selected_option_text = options.get(selected_option, "")
+
+        except Exception as e:
+            print(f"Error processing options for question {q['question_id']}: {str(e)}")
 
         analysis.append({
             "question_id": q["question_id"],
             "question_text": q["prompt"],
-            "correct_option": q["answer"],
-            "explanation": q.get("explanation"),
-            "selected_option": answer["selected_answer"],
-            "options": options,
+            "correct_option": correct_option,
+            "correct_option_text": correct_option_text,
+            "selected_option": selected_option,
+            "selected_option_text": selected_option_text,
+            "explanation": q.get("explanation", "No explanation provided"),
+            "is_correct": answer["is_correct"],
+            "all_options": options,
         })
 
-    return jsonify({"questions": analysis})
-
+    return jsonify({
+        "questions": analysis,
+        "attempt_data": {  # Add attempt metadata
+            "score": selected_attempt.get("score"),
+            "submitted_at": selected_attempt.get("submitted_at")
+        }
+    })
 
 # Helper to convert 'A', 'B' etc. to option text
 def option_letter_to_text(letter, answer_option_text):

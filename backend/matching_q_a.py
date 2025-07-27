@@ -1,6 +1,7 @@
 import uuid
 import os 
 import logging
+import json
 from dotenv import load_dotenv
 from datetime import datetime
 from supabase import create_client
@@ -16,21 +17,34 @@ def generate_uuid():
     return str(uuid.uuid4())
 
 def evaluate_and_save_quiz(user_id, topic_id, submitted_answers):
+    import json
+
     # Extract question IDs
     question_ids = [ans["question_id"] for ans in submitted_answers]
 
-    # Fetch correct answers from Supabase
+    # Fetch correct answers and options
     correct_answers_res = supabase.table("quiz_questions") \
-        .select("question_id, answer") \
+        .select("question_id, answer, answer_option_text") \
         .in_("question_id", question_ids) \
         .execute()
 
     if not correct_answers_res.data:
         raise Exception("Failed to fetch correct answers from Supabase")
 
-    correct_answers_map = {q["question_id"]: q["answer"] for q in correct_answers_res.data}
+    correct_answers_map = {}
+    option_text_map = {}
 
-    # Compare answers and prepare answers data to save
+    # Parse correct answers and answer text options
+    for q in correct_answers_res.data:
+        correct_answers_map[q["question_id"]] = q["answer"]
+
+        try:
+            option_text_map[q["question_id"]] = json.loads(q.get("answer_option_text", "{}"))
+        except Exception as e:
+            logging.warning(f"❌ Failed to parse answer_option_text for question {q['question_id']}: {e}")
+            option_text_map[q["question_id"]] = {}
+
+    # Compare answers and prepare for saving
     total_questions = len(submitted_answers)
     correct_count = 0
     answers_to_save = []
@@ -38,9 +52,15 @@ def evaluate_and_save_quiz(user_id, topic_id, submitted_answers):
     for ans in submitted_answers:
         qid = ans["question_id"]
         selected = ans["selected_answer"]
-        
         correct = correct_answers_map.get(qid)
+
+        option_texts = option_text_map.get(qid, {})  # ✅ Make sure this is above both .get() calls
+
+        correct_text = option_texts.get(correct, "N/A")
+        selected_text = option_texts.get(selected, "N/A")
+
         is_correct = (selected == correct)
+
         if is_correct:
             correct_count += 1
 
@@ -48,14 +68,15 @@ def evaluate_and_save_quiz(user_id, topic_id, submitted_answers):
             "answer_id": generate_uuid(),
             "question_id": qid,
             "selected_answer": selected,
+            "selected_answer_text": selected_text,
             "is_correct": is_correct
         })
 
-    # Calculate score out of 10
+    # Score calculation
     score = (correct_count / total_questions) * 10
-
-    # Insert quiz attempt
     attempt_id = generate_uuid()
+
+    # Save quiz attempt
     attempt_res = supabase.table("quiz_attempts").insert({
         "attempt_id": attempt_id,
         "user_id": user_id,
@@ -67,28 +88,26 @@ def evaluate_and_save_quiz(user_id, topic_id, submitted_answers):
     if not attempt_res.data:
         raise Exception("Failed to insert quiz attempt into Supabase")
 
-    # Insert quiz answers linked to the attempt
+    # Add attempt ID to each answer record
     for answer in answers_to_save:
         answer["attempt_id"] = attempt_id
 
+    # Save all answers
     answers_res = supabase.table("quiz_answers").insert(answers_to_save).execute()
     if not answers_res.data:
         raise Exception("Failed to insert quiz answers into Supabase")
 
-    # Update user_topic_progress table
-    # Check existing progress
+    # Update or insert progress
     progress_res = supabase.table("user_topic_progress") \
         .select("*") \
         .eq("user_id", user_id) \
         .eq("topic_id", topic_id) \
         .maybe_single() \
         .execute()
-        
-    print("progress_res:", progress_res)
-    print("progress_res.data:", getattr(progress_res, 'data', None))
-    
-    if not progress_res or not getattr(progress_res, 'data', None):
-    # No progress record found — insert new
+
+    progress_data = getattr(progress_res, 'data', None)
+
+    if not progress_data:
         insert_progress_res = supabase.table("user_topic_progress").insert({
             "user_id": user_id,
             "topic_id": topic_id,
@@ -101,10 +120,9 @@ def evaluate_and_save_quiz(user_id, topic_id, submitted_answers):
         if not insert_progress_res or not insert_progress_res.data:
             raise Exception("Failed to insert user topic progress into Supabase")
     else:
-        # Existing progress found — update record
-        attempts_count = progress_res.data.get("attempts_count", 0) + 1
-        mastered = progress_res.data.get("mastered", False) or (score >= 7)
-        
+        attempts_count = progress_data.get("attempts_count", 0) + 1
+        mastered = progress_data.get("mastered", False) or (score >= 7)
+
         update_res = supabase.table("user_topic_progress").update({
             "last_score": score,
             "attempts_count": attempts_count,
@@ -114,8 +132,8 @@ def evaluate_and_save_quiz(user_id, topic_id, submitted_answers):
 
         if not update_res or not update_res.data:
             raise Exception("Failed to update user topic progress in Supabase")
-        
-# 🔥 NOW update topic_status in topics based on score
+
+    # Update topic status
     new_status = "Completed" if score > 7 else "Weak"
     status_update = supabase.table("topics").update({
         "topic_status": new_status
@@ -129,3 +147,4 @@ def evaluate_and_save_quiz(user_id, topic_id, submitted_answers):
         "total_questions": total_questions,
         "correct_answers": correct_count
     }
+		
