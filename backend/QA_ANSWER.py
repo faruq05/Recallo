@@ -2,6 +2,7 @@ import re
 import os
 from dotenv import load_dotenv
 import uuid
+import json
 from supabase import create_client, Client
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.chains import LLMChain
@@ -121,7 +122,6 @@ def generate_and_save_mcqs(topic_id: str, gemini_api_key: str, difficulty_mode: 
     if len(questions) < 10:
         raise Exception("Failed to generate 10 questions")
 
-    # Save questions to Supabase and collect full data to return
     saved_questions = []
 
     for q in questions:
@@ -129,16 +129,21 @@ def generate_and_save_mcqs(topic_id: str, gemini_api_key: str, difficulty_mode: 
         correct_index = ord(q["correct_answer"]) - ord('A')
         correct_text = q["options"][correct_index] if 0 <= correct_index < len(q["options"]) else "N/A"
 
-        # Optional: Use a default explanation for now
-        explanation_text = f"The correct answer is option {q['correct_answer']} because it best reflects the core idea from the content."
+        # Default explanation fallback if not provided
+        explanation = q.get("explanation") or f"The correct answer is option {q['correct_answer']} because it best reflects the core idea from the content."
 
         supabase.table("quiz_questions").insert({
             "question_id": qid,
             "concept_id": topic_id,
             "prompt": q["question_text"],
             "answer": q["correct_answer"],
-            "answer_option_text": q["correct_text"],
-            "explanation": q["explanation"],
+            "answer_option_text": json.dumps({
+                "A": q["options"][0],
+                "B": q["options"][1],
+                "C": q["options"][2],
+                "D": q["options"][3]
+            }),
+            "explanation": explanation,
             "created_at": datetime.now().isoformat()
         }).execute()
 
@@ -147,8 +152,8 @@ def generate_and_save_mcqs(topic_id: str, gemini_api_key: str, difficulty_mode: 
             "question_text": q["question_text"],
             "options": q["options"],
             "correct_answer": q["correct_answer"],
-            "answer_text": q["correct_text"],
-            "explanation": q["explanation"]
+            "answer_text": correct_text,  # ← fixed this
+            "explanation": explanation
         })
 
     return saved_questions

@@ -585,3 +585,43 @@ white-space: nowrap;
   padding: 5px 10px;
   color: white;
 }
+
+.dedicated_answer_box{
+  border: 1px solid var(--cs-border);
+  padding: 20px;
+}
+
+.dedicated_answer_box p {
+  margin-bottom: 10px;
+}
+
+.expl{
+  padding: 20px;
+  background-color: var(--cs-border);
+  border-radius: 10px;
+}
+
+
+.attempt-info {
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
+    color: var(--cs-hover);
+}
+
+/* Add backdrop blur effect */
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 1040;
+}
+
+/* Ensure modal appears above backdrop */
+.modal {
+  z-index: 1050;
+}

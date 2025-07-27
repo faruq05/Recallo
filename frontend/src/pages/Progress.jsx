@@ -97,25 +97,52 @@ const Progress = () => {
   const hasResults = Object.keys(groupedTopics).length > 0;
 
   // handle answer for answer analysis
+  // In your handleAnswerAnalysis function:
   const handleAnswerAnalysis = async (topicId, attemptNumber) => {
     setShowModal(true);
     setLoadingAnalysis(true);
     setAnalysisData([]);
+    setAttemptData(null); // Add this state
     try {
       const response = await fetch(
         `http://localhost:5000/api/answer-analysis?topic_id=${topicId}&attempt_number=${attemptNumber}&user_id=${userId}`
       );
       if (response.ok) {
         const data = await response.json();
-        setAnalysisData(data.questions); // Expecting an array of objects
-      } else {
-        console.error("Error fetching analysis:", response.statusText);
+        setAnalysisData(data.questions);
+        setAttemptData(data.attempt_data); // Store attempt data
       }
-    } catch (err) {
-      console.error("Error fetching analysis:", err.message);
+    } finally {
+      setLoadingAnalysis(false);
     }
-    setLoadingAnalysis(false);
   };
+
+  // Add this state at the top of your component:
+  const [attemptData, setAttemptData] = useState(null);
+
+  // Update your modal header:
+  <div className="modal-header">
+    <div>
+      <h5 className="modal-title">Answer Analysis</h5>
+      {attemptData && (
+        <div className="attempt-info">
+          <span className="me-3">
+            <strong>Score:</strong> {attemptData.score || "N/A"}
+          </span>
+          <span>
+            <strong>Date:</strong>{" "}
+            {new Date(attemptData.submitted_at).toLocaleDateString()}
+          </span>
+        </div>
+      )}
+    </div>
+    <button
+      type="button"
+      className="btn-close btn-close-white"
+      aria-label="Close"
+      onClick={() => setShowModal(false)}
+    />
+  </div>;
 
   return (
     <div className="chat chat-wrapper d-flex min-vh-100">
@@ -281,19 +308,37 @@ const Progress = () => {
 
       {/* modal */}
       {showModal && (
+        <>
+        <div className="modal-backdrop fade show" onClick={() => setShowModal(false)}></div>
         <div className="modal show d-block" tabIndex="-1" role="dialog">
-          <div className="modal-dialog modal-lg" role="document">
+          <div className="modal-dialog modal-xl modal-lg" role="document">
             <div className="modal-content bg-dark text-white">
-              <div className="modal-header">
-                <h5 className="modal-title">Answer Analysis</h5>
+              <div className="modal-header p-4">
+                <div>
+                  <h5 className="modal-title">Answer Analysis</h5>
+                  {attemptData && (
+                    <div className="attempt-info">
+                      <span className="me-3">
+                        <strong>Score:</strong> {attemptData.score || "N/A"}/10
+                      </span>
+                      <span>
+                        <strong>Date:</strong>{" "}
+                        {new Date(
+                          attemptData.submitted_at
+                        ).toLocaleDateString()}
+                      </span>
+                    </div>
+                  )}
+                </div>
                 <button
                   type="button"
                   className="btn-close btn-close-white"
                   aria-label="Close"
                   onClick={() => setShowModal(false)}
-                ></button>
+                />
               </div>
-              <div className="modal-body">
+
+              <div className="modal-body p-4">
                 {loadingAnalysis ? (
                   <div className="text-center">
                     <div className="spinner-border text-light" role="status" />
@@ -301,56 +346,47 @@ const Progress = () => {
                 ) : analysisData.length === 0 ? (
                   <p>No analysis data found.</p>
                 ) : (
-                  analysisData.map((q, index) => {
-                    //const isCorrect = q.selected_option === q.correct_option;
+                  analysisData.map((q, index) => (
+                    <div
+                      key={q.question_id || index}
+                      className="dedicated_answer_box"
+                    >
+                      <p>
+                        <strong>Q{index + 1}:</strong> {q.question_text}
+                      </p>
 
-                    return (
-                      <div
-                        key={q.question_id}
-                        className="mb-4 p-3 border rounded"
-                      >
+                      <p>
+                        <strong>Your answer:</strong>{" "}
+                        <span
+                          style={{ color: q.is_correct ? "limegreen" : "red" }}
+                        >
+                          {q.selected_option
+                            ? `(${q.selected_option}) ${q.selected_option_text}`
+                            : "No answer selected"}
+                        </span>
+                      </p>
+
+                      {!q.is_correct && (
                         <p>
-                          <strong>Q{index + 1}:</strong> {q.question_text}
+                          <strong>Correct answer:</strong>{" "}
+                          <span style={{ color: "limegreen" }}>
+                            ({q.correct_option}) {q.correct_option_text}
+                          </span>
                         </p>
-                        <ul className="list-group">
-                          {q.options.map((opt, i) => {
-                            const isSelected = opt.option === q.selected_option;
-                            const isCorrectOption =
-                              opt.option === q.correct_option;
+                      )}
 
-                            let className = "list-group-item";
-                            if (isCorrectOption && isSelected) {
-                              className += " list-group-item-success";
-                            } else if (isSelected && !isCorrectOption) {
-                              className += " list-group-item-danger";
-                            } else if (isCorrectOption) {
-                              className += " list-group-item-success";
-                            }
-
-                            return (
-                              <li key={i} className={className}>
-                                <strong>{opt.option}.</strong> {opt.option_text}
-                                {isSelected && (
-                                  <span className="ms-2 badge bg-light text-dark">
-                                    Your Answer
-                                  </span>
-                                )}
-                              </li>
-                            );
-                          })}
-                        </ul>
-                        <div className="mt-2">
-                          <strong>Explanation:</strong> {q.explanation || "N/A"}
-                        </div>
-                      </div>
-                    );
-                  })
+                      <p className="expl">
+                        <strong>Explanation:</strong> {q.explanation}
+                      </p>
+                    </div>
+                  ))
                 )}
               </div>
+
               <div className="modal-footer">
                 <button
                   type="button"
-                  className="btn btn-secondary"
+                  className="btn btn-sm btn-answer"
                   onClick={() => setShowModal(false)}
                 >
                   Close
@@ -359,6 +395,7 @@ const Progress = () => {
             </div>
           </div>
         </div>
+        </>
       )}
     </div>
   );
