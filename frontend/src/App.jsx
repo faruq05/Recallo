@@ -10,6 +10,8 @@ import Todo from "./pages/Todo";
 import Topics from "./pages/Topics";
 import Exam from "./pages/Exam";
 import Progress from "./pages/Progress";
+import Archive from "./pages/Archive";
+import Study_Metrics from "./pages/StudyMetrics";
 function App() {
   return (
     <Router>
@@ -23,6 +25,8 @@ function App() {
         <Route path="/topics" element={<Topics />} />
         <Route path="/exam" element={<Exam />} />
         <Route path="/progress" element={<Progress />} />
+        <Route path="/archive" element={<Archive />} />
+        <Route path="/studymetrics" element={<Study_Metrics />} />
       </Routes>
     </Router>
   );
