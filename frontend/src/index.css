@@ -630,14 +630,27 @@ white-space: nowrap;
   right: 0;
   bottom: 0;
   background-color: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
   z-index: 1040;
 }
 
 /* Ensure modal appears above backdrop */
 .modal {
   z-index: 1050;
+}
+
+.score_info{
+  background-color: var(--cs-matblack);
+  color: var(--cs-white);
+  padding: 10px;
+  border: 1px solid var(--cs-border);
+  border-radius: 10px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.score_info span{
+  font-size: 18px;
 }
 
 

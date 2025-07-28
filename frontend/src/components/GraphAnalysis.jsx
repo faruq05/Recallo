@@ -1,63 +1,79 @@
+// GraphAnalysis.jsx
 import React from "react";
 import {
-  AreaChart,
-  Area,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  Label
 } from "recharts";
 
-// Map score to color
-const getDotColor = (score) => (score <= 7 ? "#ff4d4d" : "#28a745");
+const CustomTooltip = ({ active, payload, label }) => {
+  if (active && payload && payload.length) {
+    const { score } = payload[0].payload;
+    return (
+      <div className="score_info">
+        <strong>Attempt #{label}</strong>
+        <br />
+        Score: <span className="grad_text  fw-bold">{score}/10</span>
+      </div>
+    );
+  }
+  return null;
+};
 
-const GraphAnalysis = ({ topicTitle, history }) => {
-  // Prepare chart data
-  const chartData = history
-    .slice()
-    .reverse()
-    .map((attempt, index) => ({
-      attempt: `#${index + 1}`,
-      score: attempt.score,
-      date: new Date(attempt.timestamp || attempt.created_at).toLocaleDateString(),
-    }));
+const GraphAnalysis = ({ history }) => {
+  if (!history || !Array.isArray(history)) return null;
+
+  const chartData = history.map((attempt, index) => ({
+    attempt: attempt.attempt_number ?? index + 1,
+    score: attempt.score ?? 0,
+  }));
 
   return (
-    <div className="mb-4">
-      <h5 className="text-white text-center mb-3">📈 Score Progress for: {topicTitle}</h5>
-      <ResponsiveContainer width="100%" height={300}>
-        <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+    <div className="mb-3">
+      {/* <h6 className="text-info mb-2">📈 Topic Progress: {topicTitle}</h6> */}
+      <ResponsiveContainer width="100%" height={200}>
+        <LineChart data={chartData} margin={{ top: 20, right: 30, left: 10, bottom: 30 }}>
           <defs>
-            <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#00c9ff" stopOpacity={0.8} />
-              <stop offset="100%" stopColor="#92fe9d" stopOpacity={0.2} />
+            <linearGradient id="scoreGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#ffcb5cff" stopOpacity={0.8} />
+              <stop offset="95%" stopColor="#ce8d00ff" stopOpacity={0.4} />
             </linearGradient>
           </defs>
 
-          <CartesianGrid strokeDasharray="3 3" stroke="#555" />
-          <XAxis dataKey="attempt" stroke="#aaa" />
-          <YAxis domain={[0, 10]} tickCount={6} stroke="#aaa" />
-          <Tooltip
-            contentStyle={{ backgroundColor: "#222", border: "none", color: "#fff" }}
-            labelStyle={{ color: "#fff" }}
-            formatter={(value, name) =>
-              name === "score" ? [`${value}/10`, "Score"] : value
-            }
-          />
-          <Area
+          <CartesianGrid strokeDasharray="3 3" stroke="#444" />
+          <XAxis dataKey="attempt" stroke="#aaa">
+            <Label value="Test Attempts" offset={-20} position="insideBottom" fill="#bbb" />
+          </XAxis>
+          <YAxis domain={[1, 10]} ticks={[1,2,3,4,5,6,7,8,9,10]} stroke="#aaa">
+            <Label value="Score" angle={-90} position="insideLeft" fill="#bbb" />
+          </YAxis>
+
+          <Tooltip content={<CustomTooltip />} />
+
+          <Line
             type="monotone"
             dataKey="score"
-            stroke="#ffffff"
-            fill="url(#colorScore)"
-            activeDot={({ payload }) => ({
-              r: 6,
-              fill: getDotColor(payload.score),
-              stroke: "#fff",
+            stroke="url(#scoreGradient)"
+            strokeWidth={3}
+            dot={{
+              stroke: "#edb437",
               strokeWidth: 2,
-            })}
+              r: 5,
+              fill: "#fff"
+            }}
+            activeDot={{
+              stroke: "#fff",
+              strokeWidth: 3,
+              r: 7,
+              fill: "#edb437"
+            }}
           />
-        </AreaChart>
+        </LineChart>
       </ResponsiveContainer>
     </div>
   );
