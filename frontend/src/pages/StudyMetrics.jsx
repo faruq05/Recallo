@@ -5,7 +5,7 @@ import useSession from "../utils/useSession";
 import {
   EqualApproximately,
   Eye,
-  BookMarked,
+  PackageSearch,
   Clock,
   BarChart2,
   TrendingUp,
@@ -14,16 +14,37 @@ import {
   ChevronDown,
   Pencil,
   Trash2,
-  PackageSearch,
 } from "lucide-react";
 import "bootstrap/dist/css/bootstrap.min.css";
 import supabase from "../utils/supabaseClient";
 import ProgressBar from "react-bootstrap/ProgressBar";
 import { useNavigate } from "react-router-dom";
+import { Modal, Button } from "react-bootstrap";
+import RadarGraph from "../components/RadarGraph";
+import {
+  Chart as ChartJS,
+  RadialLinearScale,
+  PointElement,
+  LineElement,
+  Filler,
+  Tooltip,
+  Legend,
+  ArcElement,
+} from "chart.js";
+
+ChartJS.register(
+  RadialLinearScale,
+  PointElement,
+  LineElement,
+  Filler,
+  Tooltip,
+  Legend,
+  ArcElement
+);
 
 const StudyMetrics = () => {
   const {
-    user,
+    //user,
     userId,
     isLoggedIn,
     isSidebarOpen,
@@ -33,8 +54,7 @@ const StudyMetrics = () => {
   } = useSession();
 
   const navigate = useNavigate();
-  const [weakTopics, setWeakTopics] = useState([]);
-  const [strongTopics, setStrongTopics] = useState([]);
+  const [topicsByFile, setTopicsByFile] = useState({});
   const [metrics, setMetrics] = useState({
     quizCount: 0,
     averageScore: 0,
@@ -47,6 +67,18 @@ const StudyMetrics = () => {
   const [editingTopicId, setEditingTopicId] = useState(null);
   const [newTitle, setNewTitle] = useState("");
   const [expandedSummaries, setExpandedSummaries] = useState({});
+  const [showGraphModal, setShowGraphModal] = useState(false);
+  const [selectedFileForGraph, setSelectedFileForGraph] = useState(null);
+
+  const openGraphModal = (fileName) => {
+    setSelectedFileForGraph(fileName);
+    setShowGraphModal(true);
+  };
+
+  const closeGraphModal = () => {
+    setShowGraphModal(false);
+    setSelectedFileForGraph(null);
+  };
 
   const toggleSummary = (topicId) => {
     setExpandedSummaries((prev) => ({
@@ -75,7 +107,7 @@ const StudyMetrics = () => {
 
         if (attemptsError) throw attemptsError;
 
-        // Fetch topics with their latest attempt
+        // Fetch topics
         const { data: topics, error: topicsError } = await supabase
           .from("topics")
           .select(
@@ -86,7 +118,7 @@ const StudyMetrics = () => {
 
         if (topicsError) throw topicsError;
 
-        // Process metrics
+        // Calculate quiz stats
         const quizCount = attempts.length;
         const totalScore = attempts.reduce(
           (sum, attempt) => sum + (attempt.score || 0),
@@ -95,7 +127,7 @@ const StudyMetrics = () => {
         const averageScore =
           quizCount > 0 ? (totalScore / quizCount).toFixed(1) : 0;
 
-        // Find latest attempt for each topic
+        // Compose topics with their latest attempts
         const topicMetrics = topics.map((topic) => {
           const topicAttempts = attempts.filter(
             (a) => a.topic_id === topic.topic_id
@@ -103,28 +135,36 @@ const StudyMetrics = () => {
           const latestAttempt = topicAttempts[0];
           return {
             ...topic,
-            latestScore: latestAttempt?.score || null,
-            lastAttemptDate: latestAttempt?.submitted_at || null,
+            latestScore: latestAttempt?.score ?? null,
+            lastAttemptDate: latestAttempt?.submitted_at ?? null,
             attemptCount: topicAttempts.length,
           };
         });
 
-        // Separate weak and strong topics
-        const weak = topicMetrics.filter(
-          (topic) => topic.latestScore !== null && topic.latestScore <= 7
-        );
-        const strong = topicMetrics.filter(
-          (topic) => topic.latestScore !== null && topic.latestScore > 7
-        );
+        // Group topics by file and strength
+        const grouped = {};
+        topicMetrics.forEach((topic) => {
+          const fileName = topic.file_name || "Uncategorized";
+          if (!grouped[fileName]) grouped[fileName] = { weak: [], strong: [] };
+          if (topic.latestScore !== null) {
+            if (topic.latestScore <= 7) grouped[fileName].weak.push(topic);
+            else grouped[fileName].strong.push(topic);
+          }
+        });
 
-        setWeakTopics(weak);
-        setStrongTopics(strong);
+        setTopicsByFile(grouped);
         setMetrics({
           quizCount,
           averageScore,
-          weakCount: weak.length,
-          completedCount: strong.length,
-          lastActivity: attempts[0]?.submitted_at || null,
+          weakCount: Object.values(grouped).reduce(
+            (sum, file) => sum + file.weak.length,
+            0
+          ),
+          completedCount: Object.values(grouped).reduce(
+            (sum, file) => sum + file.strong.length,
+            0
+          ),
+          lastActivity: attempts[0]?.submitted_at ?? null,
         });
       } catch (err) {
         console.error("Error fetching study metrics:", err);
@@ -151,15 +191,19 @@ const StudyMetrics = () => {
     } else {
       setEditingTopicId(null);
       setNewTitle("");
-      // Refresh data
-      const updatedWeak = weakTopics.map((topic) =>
-        topic.topic_id === topicId ? { ...topic, title: newTitle } : topic
-      );
-      const updatedStrong = strongTopics.map((topic) =>
-        topic.topic_id === topicId ? { ...topic, title: newTitle } : topic
-      );
-      setWeakTopics(updatedWeak);
-      setStrongTopics(updatedStrong);
+      // Update locally for UI smoothness
+      setTopicsByFile((prev) => {
+        const updated = { ...prev };
+        for (const fileName in updated) {
+          updated[fileName].weak = updated[fileName].weak.map((t) =>
+            t.topic_id === topicId ? { ...t, title: newTitle } : t
+          );
+          updated[fileName].strong = updated[fileName].strong.map((t) =>
+            t.topic_id === topicId ? { ...t, title: newTitle } : t
+          );
+        }
+        return updated;
+      });
     }
   };
 
@@ -178,12 +222,16 @@ const StudyMetrics = () => {
       alert("Failed to delete topic");
       console.error(error);
     } else {
-      setWeakTopics((prev) =>
-        prev.filter((topic) => topic.topic_id !== topicId)
-      );
-      setStrongTopics((prev) =>
-        prev.filter((topic) => topic.topic_id !== topicId)
-      );
+      setTopicsByFile((prev) => {
+        const updated = {};
+        for (const fileName in prev) {
+          updated[fileName] = {
+            weak: prev[fileName].weak.filter((t) => t.topic_id !== topicId),
+            strong: prev[fileName].strong.filter((t) => t.topic_id !== topicId),
+          };
+        }
+        return updated;
+      });
     }
   };
 
@@ -196,6 +244,118 @@ const StudyMetrics = () => {
       },
     });
   };
+
+  // Helper to render topic card, for weak or strong topic
+  const renderTopicCard = (topic, strength) => (
+    <div className="col-sm-6 col-md-6 col-xl-4 mb-4" key={topic.topic_id}>
+      <div className="card topic_card text-white">
+        <div className="card-body">
+          <div className="topic_status d-flex justify-content-between align-items-center mb-3">
+            <span
+              className={`badge ${
+                strength === "Weak" ? "badge-weak" : "badge-completed"
+              }`}
+            >
+              {strength}
+            </span>
+            <p className="card-text d-flex align-items-center small text-white">
+              <Clock size={14} className="me-1" />
+              {new Date(
+                topic.lastAttemptDate || topic.created_at
+              ).toLocaleDateString()}
+            </p>
+          </div>
+
+          <div className="d-flex justify-content-between align-items-start mb-2">
+            {editingTopicId === topic.topic_id ? (
+              <input
+                type="text"
+                className="form-control form-control-sm me-2"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                onBlur={() => handleEditTopic(topic.topic_id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleEditTopic(topic.topic_id);
+                  if (e.key === "Escape") {
+                    setEditingTopicId(null);
+                    setNewTitle("");
+                  }
+                }}
+                autoFocus
+              />
+            ) : (
+              <h5 className="card-title mb-0">{topic.title}</h5>
+            )}
+            <div className="d-flex gap-2">
+              <Pencil
+                className="edit-icon"
+                size={18}
+                style={{ cursor: "pointer" }}
+                onClick={() => {
+                  setEditingTopicId(topic.topic_id);
+                  setNewTitle(topic.title);
+                }}
+              />
+              <Trash2
+                className="edit-icon"
+                size={18}
+                style={{ cursor: "pointer" }}
+                onClick={() => handleDeleteTopic(topic.topic_id)}
+              />
+            </div>
+          </div>
+
+          <div className="d-flex justify-content-between align-items-center mb-2">
+            <span
+              className={
+                strength === "Weak"
+                  ? "text-danger fw-bold"
+                  : "text-success fw-bold"
+              }
+            >
+              {topic.latestScore}/10
+            </span>
+            <span className="small">
+              {topic.attemptCount} attempt{topic.attemptCount !== 1 ? "s" : ""}
+            </span>
+          </div>
+
+          <button
+            className="btn btn-sm btn-outline w-100 p-0 d-flex justify-content-between align-items-center text-white mt-2"
+            onClick={() => toggleSummary(topic.topic_id)}
+          >
+            Topic Summary
+            {expandedSummaries[topic.topic_id] ? (
+              <ChevronUp size={16} />
+            ) : (
+              <ChevronDown size={16} />
+            )}
+          </button>
+
+          {expandedSummaries[topic.topic_id] && (
+            <div className="card-topic-summary text-white small mt-2">
+              {topic.topic_summary || "No summary available."}
+            </div>
+          )}
+
+          <div className="d-flex justify-content-between mt-3">
+            <button className="btn btn-sm btn-outline-light">
+              <Eye size={16} className="me-1" />
+              Flashcards
+            </button>
+            {strength === "Weak" && (
+              <button
+                className="btn btn-sm btn-answer"
+                onClick={() => handleTakeExam(topic)}
+              >
+                Take Exam
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   if (!isLoggedIn) {
     return (
@@ -299,286 +459,95 @@ const StudyMetrics = () => {
           </div>
         </div>
 
-        {/* Weak Topics Section */}
+        {/* Topics grouped by file with weak & strong */}
         <div className="container mb-5">
-          <h4 className="grad-text mb-4">
-            <TrendingDown className="me-2 text-danger" />
-            <span className="grad_text">Weak Areas</span>
-          </h4>
-
           {loading ? (
             <div className="text-center">
               <div className="spinner-border text-light" role="status" />
             </div>
-          ) : weakTopics.length === 0 ? (
-            <div className="alert alert-metrics">
-              No weak topics found. Keep up the good work!
-            </div>
+          ) : Object.keys(topicsByFile).length === 0 ? (
+            <div className="alert alert-metrics">No topics found.</div>
           ) : (
-            // Group topics by file_name
-            Object.entries(
-              weakTopics.reduce((acc, topic) => {
-                const fileName = topic.file_name || "Uncategorized";
-                if (!acc[fileName]) {
-                  acc[fileName] = [];
-                }
-                acc[fileName].push(topic);
-                return acc;
-              }, {})
-            ).map(([fileName, topics]) => (
-              <div key={fileName} className="mb-4">
-                {/* File name header - now only once per group */}
-                <div className="d-flex align-items-center mb-2">
-                  <PackageSearch size={30} className="me-2" />
-                  <h4 className="text-white">{fileName}</h4>
+            Object.entries(topicsByFile).map(([fileName, { weak, strong }]) => (
+              <div key={fileName} className="mb-5">
+                {/* File Header */}
+                <div className="d-flex align-items-center mb-3">
+                  <div className="metrics_file d-flex align-items-center">
+                    <PackageSearch size={30} className="me-2" />
+                    <h4 className="text-white">{fileName}</h4>
+                  </div>
+                  <Button
+                    className="btn btn-outline-light ms-auto btn-answer"
+                    onClick={() => openGraphModal(fileName)}
+                  >
+                    View Graph analysis
+                  </Button>
                 </div>
 
-                <div className="row">
-                  {topics.map((topic) => (
-                    <div
-                      className="col-sm-6 col-md-6 col-xl-4 mb-4"
-                      key={topic.topic_id}
-                    >
-                      <div className="card topic_card text-white">
-                        <div className="card-body">
-                          <div className="topic_status d-flex justify-content-between align-items-center mb-3">
-                            <span className="badge badge-weak">Weak</span>
-                            <p className="card-text d-flex align-items-center small text-muted">
-                              <Clock size={14} className="me-1" />
-                              {new Date(
-                                topic.lastAttemptDate || topic.created_at
-                              ).toLocaleDateString()}
-                            </p>
-                          </div>
+                {/* Weak Section */}
+                <h5 className="grad-text mb-3 d-flex align-items-center">
+                  <TrendingDown className="me-2 text-danger" />
+                  <span className="grad_text">Weak Areas</span>
+                </h5>
 
-                          <div className="d-flex justify-content-between align-items-start mb-2">
-                            {editingTopicId === topic.topic_id ? (
-                              <input
-                                type="text"
-                                className="form-control form-control-sm me-2"
-                                value={newTitle}
-                                onChange={(e) => setNewTitle(e.target.value)}
-                                onBlur={() => handleEditTopic(topic.topic_id)}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter")
-                                    handleEditTopic(topic.topic_id);
-                                  if (e.key === "Escape") {
-                                    setEditingTopicId(null);
-                                    setNewTitle("");
-                                  }
-                                }}
-                                autoFocus
-                              />
-                            ) : (
-                              <h5 className="card-title mb-0">{topic.title}</h5>
-                            )}
-                            <div className="d-flex gap-2">
-                              <Pencil
-                                className="edit-icon"
-                                size={18}
-                                style={{ cursor: "pointer" }}
-                                onClick={() => {
-                                  setEditingTopicId(topic.topic_id);
-                                  setNewTitle(topic.title);
-                                }}
-                              />
-                              <Trash2
-                                className="edit-icon"
-                                size={18}
-                                style={{ cursor: "pointer" }}
-                                onClick={() =>
-                                  handleDeleteTopic(topic.topic_id)
-                                }
-                              />
-                            </div>
-                          </div>
+                {weak.length === 0 ? (
+                  <div className="alert alert-metrics">
+                    No weak topics found.
+                  </div>
+                ) : (
+                  <div className="row">
+                    {weak.map((topic) => renderTopicCard(topic, "Weak"))}
+                  </div>
+                )}
 
-                          <div className="d-flex justify-content-between align-items-center mb-2">
-                            <span className="text-danger fw-bold">
-                              {topic.latestScore}/10
-                            </span>
-                            <span className="small text-muted">
-                              {topic.attemptCount} attempt
-                              {topic.attemptCount !== 1 ? "s" : ""}
-                            </span>
-                          </div>
+                {/* Strong Section */}
+                <h5 className="grad-text mb-3 d-flex align-items-center mt-4">
+                  <TrendingUp className="me-2 text-success" />
+                  <span className="grad_text">Strong Areas</span>
+                </h5>
 
-                          <button
-                            className="btn btn-sm btn-outline w-100 p-0 d-flex justify-content-between align-items-center text-white mt-2"
-                            onClick={() => toggleSummary(topic.topic_id)}
-                          >
-                            Topic Summary
-                            {expandedSummaries[topic.topic_id] ? (
-                              <ChevronUp size={16} />
-                            ) : (
-                              <ChevronDown size={16} />
-                            )}
-                          </button>
-
-                          {expandedSummaries[topic.topic_id] && (
-                            <div className="card-topic-summary text-white small mt-2">
-                              {topic.topic_summary || "No summary available."}
-                            </div>
-                          )}
-
-                          <div className="d-flex justify-content-between mt-3">
-                            <button className="btn btn-sm btn-outline-light">
-                              <Eye size={16} className="me-1" />
-                              Flashcards
-                            </button>
-                            <button
-                              className="btn btn-sm btn-answer"
-                              onClick={() => handleTakeExam(topic)}
-                            >
-                              Take Exam
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                {strong.length === 0 ? (
+                  <div className="alert alert-metrics">
+                    No strong topics found.
+                  </div>
+                ) : (
+                  <div className="row">
+                    {strong.map((topic) => renderTopicCard(topic, "Strong"))}
+                  </div>
+                )}
               </div>
             ))
           )}
-        </div>
+          {/* Modal for Graph */}
+          <Modal
+            show={showGraphModal}
+            onHide={closeGraphModal}
+            size="lg"
+            centered
+            backdrop="static"
+            dialogClassName="modal-90w"
+          >
+            <Modal.Header closeButton className="bg-dark text-white">
+              <Modal.Title>
+                Graph Analysis for <span className="grad_text">{selectedFileForGraph}</span>
+              </Modal.Title>
+            </Modal.Header>
 
-        {/* Strong Topics Section */}
-        <div className="container">
-          <h4 className="grad-text mb-4">
-            <TrendingUp className="me-2 text-success" />
-            <span className="grad_text">Strong Areas</span>
-          </h4>
+            <Modal.Body className="bg-dark text-white">
+              {selectedFileForGraph && (
+                <RadarGraph
+                  fileName={selectedFileForGraph}
+                  dataObj={topicsByFile[selectedFileForGraph]}
+                />
+              )}
+            </Modal.Body>
 
-          {loading ? (
-            <div className="text-center">
-              <div className="spinner-border text-light" role="status" />
-            </div>
-          ) : strongTopics.length === 0 ? (
-            <div className="alert alert-metrics">
-              No strong topics yet. Keep practicing!
-            </div>
-          ) : (
-            // Group topics by file_name
-            Object.entries(
-              strongTopics.reduce((acc, topic) => {
-                const fileName = topic.file_name || "Uncategorized";
-                if (!acc[fileName]) {
-                  acc[fileName] = [];
-                }
-                acc[fileName].push(topic);
-                return acc;
-              }, {})
-            ).map(([fileName, topics]) => (
-              <div key={fileName} className="mb-4">
-                {/* File name header - now only once per group */}
-                <div className="d-flex align-items-center mb-2">
-                  <PackageSearch size={16} className="me-2 text-muted" />
-                  <small className="text-muted text-truncate">{fileName}</small>
-                </div>
-
-                <div className="row">
-                  {topics.map((topic) => (
-                    <div
-                      className="col-sm-6 col-md-6 col-xl-4 mb-4"
-                      key={topic.topic_id}
-                    >
-                      <div className="card topic_card text-white">
-                        <div className="card-body">
-                          <div className="topic_status d-flex justify-content-between align-items-center mb-3">
-                            <span className="badge badge-completed">
-                              Strong
-                            </span>
-                            <p className="card-text d-flex align-items-center small text-muted">
-                              <Clock size={14} className="me-1" />
-                              {new Date(
-                                topic.lastAttemptDate || topic.created_at
-                              ).toLocaleDateString()}
-                            </p>
-                          </div>
-
-                          <div className="d-flex justify-content-between align-items-start mb-2">
-                            {editingTopicId === topic.topic_id ? (
-                              <input
-                                type="text"
-                                className="form-control form-control-sm me-2"
-                                value={newTitle}
-                                onChange={(e) => setNewTitle(e.target.value)}
-                                onBlur={() => handleEditTopic(topic.topic_id)}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter")
-                                    handleEditTopic(topic.topic_id);
-                                  if (e.key === "Escape") {
-                                    setEditingTopicId(null);
-                                    setNewTitle("");
-                                  }
-                                }}
-                                autoFocus
-                              />
-                            ) : (
-                              <h5 className="card-title mb-0">{topic.title}</h5>
-                            )}
-                            <div className="d-flex gap-2">
-                              <Pencil
-                                className="edit-icon"
-                                size={18}
-                                style={{ cursor: "pointer" }}
-                                onClick={() => {
-                                  setEditingTopicId(topic.topic_id);
-                                  setNewTitle(topic.title);
-                                }}
-                              />
-                              <Trash2
-                                className="edit-icon"
-                                size={18}
-                                style={{ cursor: "pointer" }}
-                                onClick={() =>
-                                  handleDeleteTopic(topic.topic_id)
-                                }
-                              />
-                            </div>
-                          </div>
-
-                          <div className="d-flex justify-content-between align-items-center mb-2">
-                            <span className="text-success fw-bold">
-                              {topic.latestScore}/10
-                            </span>
-                            <span className="small text-muted">
-                              {topic.attemptCount} attempt
-                              {topic.attemptCount !== 1 ? "s" : ""}
-                            </span>
-                          </div>
-
-                          <button
-                            className="btn btn-sm btn-outline w-100 p-0 d-flex justify-content-between align-items-center text-white mt-2"
-                            onClick={() => toggleSummary(topic.topic_id)}
-                          >
-                            Topic Summary
-                            {expandedSummaries[topic.topic_id] ? (
-                              <ChevronUp size={16} />
-                            ) : (
-                              <ChevronDown size={16} />
-                            )}
-                          </button>
-
-                          {expandedSummaries[topic.topic_id] && (
-                            <div className="card-topic-summary text-white small mt-2">
-                              {topic.topic_summary || "No summary available."}
-                            </div>
-                          )}
-
-                          <button className="btn btn-sm btn-outline-light w-100 mt-3">
-                            <Eye size={16} className="me-1" />
-                            Flashcards
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))
-          )}
+            <Modal.Footer className="bg-dark">
+              <Button variant="secondary" className="btn btn-sm btn-answer" onClick={closeGraphModal}>
+                Close
+              </Button>
+            </Modal.Footer>
+          </Modal>
         </div>
 
         <EqualApproximately
