@@ -3,8 +3,10 @@ import os
 import logging
 import json
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import datetime, timedelta, date
 from supabase import create_client
+import joblib
+import numpy as np
 
 # Initialize Supabase client (make sure these env variables are set)
 load_dotenv()
@@ -12,6 +14,7 @@ load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://bhrwvazkvsebdxstdcow.supabase.co/")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+model = joblib.load("model.pkl")
 
 def generate_uuid():
     return str(uuid.uuid4())
@@ -54,7 +57,7 @@ def evaluate_and_save_quiz(user_id, topic_id, submitted_answers):
         selected = ans["selected_answer"]
         correct = correct_answers_map.get(qid)
 
-        option_texts = option_text_map.get(qid, {})  # ✅ Make sure this is above both .get() calls
+        option_texts = option_text_map.get(qid, {})  
 
         correct_text = option_texts.get(correct, "N/A")
         selected_text = option_texts.get(selected, "N/A")
@@ -139,6 +142,41 @@ def evaluate_and_save_quiz(user_id, topic_id, submitted_answers):
         "topic_status": new_status
     }).eq("topic_id", topic_id).execute()
 
+    
+    # --- 🔮 MODEL PREDICTION FOR NEXT REVIEW DATE ---
+    # Fetch features from user_topic_review_features after trigger updates stats
+    review_data = supabase.table("user_topic_review_features") \
+    .select("latest_score, avg_score, attempts_count, days_since_last_attempt") \
+    .eq("user_id", user_id) \
+    .eq("topic_id", topic_id) \
+    .maybe_single() \
+    .execute()
+
+    if review_data.data:
+        latest_score = review_data.data.get("latest_score", score)
+        avg_score = review_data.data.get("avg_score", score)
+        attempts_count = review_data.data.get("attempts_count", 1)
+        days_since_last_attempt = review_data.data.get("days_since_last_attempt", 0)
+
+        X = np.array([[latest_score, avg_score, attempts_count, days_since_last_attempt]])
+
+        predicted_days = int(round(model.predict(X)[0]))
+        next_review_date = date.today() + timedelta(days=predicted_days)
+
+        print(f"Predicted days: {predicted_days}, Next Review Date: {next_review_date}")
+
+
+        print(f"Predicted days: {predicted_days}, Next Review Date: {next_review_date}")
+
+        supabase.table("user_topic_review_features").update({
+            "next_review_date": next_review_date.isoformat(),
+            "mastered": latest_score > 7
+        }).eq("user_id", user_id).eq("topic_id", topic_id).execute()
+
+        logging.info(f"✅ Model predicted next review date: {next_review_date}")
+    else:
+        logging.warning("⚠️ Could not fetch review features for model prediction.")
+        
     if not status_update or not status_update.data:
         logging.warning(f"⚠️ Failed to update topic_status to '{new_status}' for topic {topic_id}")
 

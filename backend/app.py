@@ -423,6 +423,58 @@ def get_answer_analysis():
             "submitted_at": selected_attempt.get("submitted_at")
         }
     })
+    
+@app.route('/generate_flashcards', methods=['POST'])
+def generate_flashcards():
+    try:
+        data = request.json
+        user_id = data.get("user_id")
+        topic_id = data.get("topic_id")
+
+        if not all([user_id, topic_id]):
+            return jsonify({"error": "Missing parameters"}), 400
+
+        # 1. Fetch quiz data from Supabase
+        wrong_answers = supabase.table('quiz_answers') \
+            .select('selected_answer, quiz_questions(prompt, answer, explanation)') \
+            .eq('user_id', user_id) \
+            .eq('quiz_questions.topic_id', topic_id) \
+            .eq('is_correct', False) \
+            .order('created_at', ascending=False) \
+            .limit(6) \
+            .execute()
+
+        right_answers = supabase.table('quiz_answers') \
+            .select('quiz_questions(prompt, answer, explanation)') \
+            .eq('user_id', user_id) \
+            .eq('quiz_questions.topic_id', topic_id) \
+            .eq('is_correct', True) \
+            .order('created_at', ascending=False) \
+            .limit(4) \
+            .execute()
+
+        # 2. Generate flashcards with Gemini
+        flashcards = []
+        for item in wrong_answers.data + right_answers.data:
+            prompt = f"""
+            Transform this quiz question into a conceptual flashcard:
+            - Question: {item['quiz_questions']['prompt']}
+            - Correct Answer: {item['quiz_questions']['answer']}
+            - User's Mistake: {item.get('selected_answer', 'N/A')}
+            
+            Generate:
+            1. Concept title (max 5 words)
+            2. 1-sentence definition
+            3. Common mistake explanation (if applicable)
+            """
+            
+            response = model.generate_content(prompt)
+            flashcards.append(response.text)
+
+        return jsonify({"flashcards": flashcards})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # Helper to convert 'A', 'B' etc. to option text
 def option_letter_to_text(letter, answer_option_text):

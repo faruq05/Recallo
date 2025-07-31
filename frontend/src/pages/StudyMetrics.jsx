@@ -21,6 +21,7 @@ import ProgressBar from "react-bootstrap/ProgressBar";
 import { useNavigate } from "react-router-dom";
 import { Modal, Button } from "react-bootstrap";
 import RadarGraph from "../components/RadarGraph";
+import FlashcardViewer from "../components/FlashcardViewer";
 import {
   Chart as ChartJS,
   RadialLinearScale,
@@ -44,7 +45,6 @@ ChartJS.register(
 
 const StudyMetrics = () => {
   const {
-    //user,
     userId,
     isLoggedIn,
     isSidebarOpen,
@@ -69,6 +69,15 @@ const StudyMetrics = () => {
   const [expandedSummaries, setExpandedSummaries] = useState({});
   const [showGraphModal, setShowGraphModal] = useState(false);
   const [selectedFileForGraph, setSelectedFileForGraph] = useState(null);
+  const [showFlashcardModal, setShowFlashcardModal] = useState(false);
+  const [flashcardTopicTitle, setFlashcardTopicTitle] = useState("");
+  const [selectedTopic, setSelectedTopic] = useState(null);
+
+  const handleOpenFlashcards = (topic) => {
+    setFlashcardTopicTitle(topic.title || "Flashcards");
+    setSelectedTopic(topic);
+    setShowFlashcardModal(true);
+  };
 
   const openGraphModal = (fileName) => {
     setSelectedFileForGraph(fileName);
@@ -339,10 +348,14 @@ const StudyMetrics = () => {
           )}
 
           <div className="d-flex justify-content-between mt-3">
-            <button className="btn btn-sm btn-outline-light">
+            <button
+              className="btn btn-sm btn-outline-light"
+              onClick={() => handleOpenFlashcards(topic)}
+            >
               <Eye size={16} className="me-1" />
               Flashcards
             </button>
+
             {strength === "Weak" && (
               <button
                 className="btn btn-sm btn-answer"
@@ -518,37 +531,51 @@ const StudyMetrics = () => {
               </div>
             ))
           )}
-          {/* Modal for Graph */}
-          <Modal
-            show={showGraphModal}
-            onHide={closeGraphModal}
-            size="lg"
-            centered
-            backdrop="static"
-            dialogClassName="modal-90w"
-          >
-            <Modal.Header closeButton className="bg-dark text-white">
-              <Modal.Title>
-                Graph Analysis for <span className="grad_text">{selectedFileForGraph}</span>
-              </Modal.Title>
-            </Modal.Header>
-
-            <Modal.Body className="bg-dark text-white">
-              {selectedFileForGraph && (
-                <RadarGraph
-                  fileName={selectedFileForGraph}
-                  dataObj={topicsByFile[selectedFileForGraph]}
-                />
-              )}
-            </Modal.Body>
-
-            <Modal.Footer className="bg-dark">
-              <Button variant="secondary" className="btn btn-sm btn-answer" onClick={closeGraphModal}>
-                Close
-              </Button>
-            </Modal.Footer>
-          </Modal>
         </div>
+
+        {/* Graph Modal */}
+        <Modal
+          show={showGraphModal}
+          onHide={closeGraphModal}
+          size="lg"
+          centered
+          backdrop="static"
+          dialogClassName="modal-90w"
+        >
+          <Modal.Header closeButton className="bg-dark text-white">
+            <Modal.Title>
+              Graph Analysis for{" "}
+              <span className="grad_text">{selectedFileForGraph}</span>
+            </Modal.Title>
+          </Modal.Header>
+
+          <Modal.Body className="bg-dark text-white">
+            {selectedFileForGraph && (
+              <RadarGraph
+                fileName={selectedFileForGraph}
+                dataObj={topicsByFile[selectedFileForGraph]}
+              />
+            )}
+          </Modal.Body>
+
+          <Modal.Footer className="bg-dark">
+            <Button
+              variant="secondary"
+              className="btn btn-sm btn-answer"
+              onClick={closeGraphModal}
+            >
+              Close
+            </Button>
+          </Modal.Footer>
+        </Modal>
+
+        {/* Flashcard Viewer Modal */}
+        <FlashcardViewer
+          show={showFlashcardModal}
+          onHide={() => setShowFlashcardModal(false)}
+          topic={selectedTopic}
+          userId={userId}
+        />
 
         <EqualApproximately
           className="d-md-none position-fixed top-0 start-0 m-3"
