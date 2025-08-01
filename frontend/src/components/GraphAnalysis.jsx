@@ -8,7 +8,7 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Label
+  Label,
 } from "recharts";
 
 const CustomTooltip = ({ active, payload, label }) => {
@@ -18,7 +18,7 @@ const CustomTooltip = ({ active, payload, label }) => {
       <div className="score_info">
         <strong>Attempt #{label}</strong>
         <br />
-        Score: <span className="grad_text  fw-bold">{score}/10</span>
+        Score: <span className="grad_text fw-bold">{score}/10</span>
       </div>
     );
   }
@@ -28,16 +28,24 @@ const CustomTooltip = ({ active, payload, label }) => {
 const GraphAnalysis = ({ history }) => {
   if (!history || !Array.isArray(history)) return null;
 
-  const chartData = history.map((attempt, index) => ({
-    attempt: attempt.attempt_number ?? index + 1,
-    score: attempt.score ?? 0,
-  }));
+  const chartData = [...history]
+    .sort((a, b) => {
+      const aNum = a.attempt_number ?? 0;
+      const bNum = b.attempt_number ?? 0;
+      return aNum - bNum;
+    })
+    .map((attempt, index) => ({
+      attempt: attempt.attempt_number ?? index + 1,
+      score: attempt.score ?? 0,
+    }));
 
   return (
     <div className="mb-3">
-      {/* <h6 className="text-info mb-2">📈 Topic Progress: {topicTitle}</h6> */}
       <ResponsiveContainer width="100%" height={200}>
-        <LineChart data={chartData} margin={{ top: 20, right: 30, left: 10, bottom: 30 }}>
+        <LineChart
+          data={chartData}
+          margin={{ top: 20, right: 30, left: 10, bottom: 30 }}
+        >
           <defs>
             <linearGradient id="scoreGradient" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor="#ffcb5cff" stopOpacity={0.8} />
@@ -46,11 +54,25 @@ const GraphAnalysis = ({ history }) => {
           </defs>
 
           <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-          <XAxis dataKey="attempt" stroke="#aaa">
-            <Label value="Test Attempts" offset={-20} position="insideBottom" fill="#bbb" />
+          <XAxis dataKey="attempt" stroke="#fff">
+            <Label
+              value="Test Attempts"
+              offset={-20}
+              position="insideBottom"
+              fill="#bbb"
+            />
           </XAxis>
-          <YAxis domain={[1, 10]} ticks={[1,2,3,4,5,6,7,8,9,10]} stroke="#aaa">
-            <Label value="Score" angle={-90} position="insideLeft" fill="#bbb" />
+          <YAxis
+            domain={[1, 10]}
+            ticks={[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]}
+            stroke="#fff"
+          >
+            <Label
+              value="Score"
+              angle={-90}
+              position="insideLeft"
+              fill="#bbb"
+            />
           </YAxis>
 
           <Tooltip content={<CustomTooltip />} />
@@ -62,15 +84,15 @@ const GraphAnalysis = ({ history }) => {
             strokeWidth={3}
             dot={{
               stroke: "#edb437",
-              strokeWidth: 2,
+              strokeWidth: 1,
               r: 5,
-              fill: "#fff"
+              fill: "#fff",
             }}
             activeDot={{
               stroke: "#fff",
               strokeWidth: 3,
               r: 7,
-              fill: "#edb437"
+              fill: "#edb437",
             }}
           />
         </LineChart>

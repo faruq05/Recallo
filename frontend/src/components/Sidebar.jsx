@@ -7,7 +7,7 @@ import { MessageCircle } from "lucide-react";
 
 const menuItems = [
   { icon: <ListTodo />, label: "To-Do List", path: "/todo" },
-  { icon: <FileSliders />, label: "Your Resources", path: "/resources" },
+  { icon: <FileSliders />, label: "Your Resources", path: "/resource" },
   { icon: <ListTree />, label: "Create Topics", path: "/topics" },
   { icon: <Notebook />, label: "Study Metrics", path: "/studymetrics" },
   { icon: <ChartPie />, label: "Progress", path: "/progress" },

@@ -74,9 +74,7 @@ const StudyMetrics = () => {
   const [selectedTopic, setSelectedTopic] = useState(null);
 
   const handleOpenFlashcards = (topic) => {
-    setFlashcardTopicTitle(topic.title || "Flashcards");
     setSelectedTopic(topic);
-    setShowFlashcardModal(true);
   };
 
   const openGraphModal = (fileName) => {
@@ -478,58 +476,56 @@ const StudyMetrics = () => {
             <div className="text-center">
               <div className="spinner-border text-light" role="status" />
             </div>
-          ) : Object.keys(topicsByFile).length === 0 ? (
-            <div className="alert alert-metrics">No topics found.</div>
           ) : (
-            Object.entries(topicsByFile).map(([fileName, { weak, strong }]) => (
-              <div key={fileName} className="mb-5">
-                {/* File Header */}
-                <div className="d-flex align-items-center mb-3">
-                  <div className="metrics_file d-flex align-items-center">
-                    <PackageSearch size={30} className="me-2" />
-                    <h4 className="text-white">{fileName}</h4>
+            Object.entries(topicsByFile)
+              .filter(
+                ([, { weak, strong }]) => weak.length > 0 || strong.length > 0
+              )
+              .map(([fileName, { weak, strong }]) => (
+                <div key={fileName} className="mb-5">
+                  {/* File Header */}
+                  <div className="d-flex align-items-center mb-3">
+                    <div className="metrics_file d-flex align-items-center">
+                      <PackageSearch size={30} className="me-2" />
+                      <h4 className="text-white">{fileName}</h4>
+                    </div>
+                    <Button
+                      className="btn btn-outline-light ms-auto btn-answer"
+                      onClick={() => openGraphModal(fileName)}
+                    >
+                      View Graph analysis
+                    </Button>
                   </div>
-                  <Button
-                    className="btn btn-outline-light ms-auto btn-answer"
-                    onClick={() => openGraphModal(fileName)}
-                  >
-                    View Graph analysis
-                  </Button>
+
+                  {/* Weak Section */}
+                  {weak.length > 0 && (
+                    <>
+                      <h5 className="grad-text mb-3 d-flex align-items-center">
+                        <TrendingDown className="me-2 text-danger" />
+                        <span className="grad_text">Weak Areas</span>
+                      </h5>
+                      <div className="row">
+                        {weak.map((topic) => renderTopicCard(topic, "Weak"))}
+                      </div>
+                    </>
+                  )}
+
+                  {/* Strong Section */}
+                  {strong.length > 0 && (
+                    <>
+                      <h5 className="grad-text mb-3 d-flex align-items-center mt-4">
+                        <TrendingUp className="me-2 text-success" />
+                        <span className="grad_text">Strong Areas</span>
+                      </h5>
+                      <div className="row">
+                        {strong.map((topic) =>
+                          renderTopicCard(topic, "Strong")
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
-
-                {/* Weak Section */}
-                <h5 className="grad-text mb-3 d-flex align-items-center">
-                  <TrendingDown className="me-2 text-danger" />
-                  <span className="grad_text">Weak Areas</span>
-                </h5>
-
-                {weak.length === 0 ? (
-                  <div className="alert alert-metrics">
-                    No weak topics found.
-                  </div>
-                ) : (
-                  <div className="row">
-                    {weak.map((topic) => renderTopicCard(topic, "Weak"))}
-                  </div>
-                )}
-
-                {/* Strong Section */}
-                <h5 className="grad-text mb-3 d-flex align-items-center mt-4">
-                  <TrendingUp className="me-2 text-success" />
-                  <span className="grad_text">Strong Areas</span>
-                </h5>
-
-                {strong.length === 0 ? (
-                  <div className="alert alert-metrics">
-                    No strong topics found.
-                  </div>
-                ) : (
-                  <div className="row">
-                    {strong.map((topic) => renderTopicCard(topic, "Strong"))}
-                  </div>
-                )}
-              </div>
-            ))
+              ))
           )}
         </div>
 
@@ -570,12 +566,14 @@ const StudyMetrics = () => {
         </Modal>
 
         {/* Flashcard Viewer Modal */}
-        <FlashcardViewer
-          show={showFlashcardModal}
-          onHide={() => setShowFlashcardModal(false)}
-          topic={selectedTopic}
-          userId={userId}
-        />
+        {selectedTopic && (
+          <FlashcardViewer
+            topic={selectedTopic}
+            userId={userId}
+            show={!!selectedTopic}
+            onHide={() => setSelectedTopic(null)}
+          />
+        )}
 
         <EqualApproximately
           className="d-md-none position-fixed top-0 start-0 m-3"

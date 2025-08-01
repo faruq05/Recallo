@@ -86,4 +86,14 @@
     margin: auto;
   }
 
+  .btn-otl{
+    font-size: 12px;
+  }
+}
+
+
+@media(max-width:381px) {
+  .hero_button a{
+    margin: 0 0 20px 0px;
+  }
 }

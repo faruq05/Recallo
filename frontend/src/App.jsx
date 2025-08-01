@@ -13,6 +13,7 @@ import Progress from "./pages/Progress";
 import Archive from "./pages/Archive";
 import Study_Metrics from "./pages/StudyMetrics";
 import Settings from "./pages/Settings";
+import Resource from "./pages/Resource";
 
 function App() {
   return (
@@ -30,6 +31,7 @@ function App() {
         <Route path="/archive" element={<Archive />} />
         <Route path="/studymetrics" element={<Study_Metrics />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/resource" element={<Resource />} />
       </Routes>
     </Router>
   );

@@ -155,137 +155,148 @@ const Progress = () => {
                   <PackageSearch className="me-2" /> {fileName}
                 </h4>
                 <div className="row">
-                  {topics.map((topic, idx) => (
-                    <div className="col-md-6 col-xl-4 mb-4" key={idx}>
-                      <div className="card topic_card text-white">
-                        <div className="card-body">
-                          <h5 className="card-title mb-1">
-                            {topic.topicTitle}
-                          </h5>
-                          <div className="d-flex justify-content-between align-items-center">
-                            <div className="my-3" style={{ width: 60 }}>
-                              <CircularProgressbar
-                                value={(topic.latestScore / 10) * 100}
-                                text={`${topic.latestScore.toFixed(1)}/10`}
-                                styles={buildStyles({
-                                  textColor: "white",
-                                  pathColor:
-                                    topic.latestScore >= 8
-                                      ? "#28a745"
-                                      : topic.latestScore >= 6
-                                      ? "#ffc107"
-                                      : "#dc3545",
-                                  trailColor: "#444",
-                                })}
-                              />
-                             
-                            </div>
-                             <button
+                  {topics.map((topic, idx) => {
+                    const safeFileName = fileName.replace(/\W/g, "");
+                    const topicId = topic.topicId || idx;
+                    const modalId = `graphModal_${safeFileName}_${topicId}`;
+
+                    return (
+                      <div className="col-md-6 col-xl-4 mb-4" key={idx}>
+                        <div className="card topic_card text-white">
+                          <div className="card-body">
+                            <h5 className="card-title mb-1">
+                              {topic.topicTitle}
+                            </h5>
+                            <div className="d-flex justify-content-between align-items-center">
+                              <div className="my-3" style={{ width: 60 }}>
+                                <CircularProgressbar
+                                  value={(topic.latestScore / 10) * 100}
+                                  text={`${topic.latestScore.toFixed(1)}/10`}
+                                  styles={buildStyles({
+                                    textColor: "white",
+                                    pathColor:
+                                      topic.latestScore >= 8
+                                        ? "#28a745"
+                                        : topic.latestScore >= 6
+                                        ? "#ffc107"
+                                        : "#dc3545",
+                                    trailColor: "#444",
+                                  })}
+                                />
+                              </div>
+
+                              <button
                                 type="button"
                                 className="btn btn-sm btn-answer"
                                 data-bs-toggle="modal"
-                                data-bs-target={`#graphModal${idx}`}
+                                data-bs-target={`#${modalId}`}
                               >
                                 View Graph Analysis
                               </button>
-                          </div>
-                          <div className="mt-3 marks_progress">
-                            <button
-                              className="btn btn-sm btn-outline w-100 d-flex justify-content-between align-items-center text-white ans_drp"
-                              onClick={() => toggleHistoryView(topic.topicId)}
-                            >
-                              Exam Marks History
-                              {expandedTopics[topic.topicId] ? (
-                                <ChevronUp size={16} />
-                              ) : (
-                                <ChevronDown size={16} />
-                              )}
-                            </button>
-                            {expandedTopics[topic.topicId] && (
-                              <div className="mt-2">
-                                {topic.history.map((attempt, i) => {
-                                  const improvement = attempt.improvement ?? 0;
-                                  return (
-                                    <div key={i} className="marks_hitory">
-                                      <div className="d-flex justify-content-between test_details_progress">
-                                        <strong>
-                                          Test {attempt.attempt_number || i + 1}
-                                        </strong>
-                                        <span className="text-muted small">
-                                          {formatTimestamp(
-                                            attempt.submitted_at
-                                          )}
-                                        </span>
-                                      </div>
-                                      <div className="d-flex justify-content-between align-items-center mt-2">
-                                        <span>
-                                          <strong>{attempt.score}/10</strong> (
-                                          {improvement > 0 ? (
-                                            <span className="text-success">
-                                              +{improvement.toFixed(1)} ↑
-                                            </span>
-                                          ) : improvement < 0 ? (
-                                            <span className="text-danger">
-                                              {improvement.toFixed(1)} ↓
-                                            </span>
-                                          ) : (
-                                            <span className="text-secondary">
-                                              0 →
-                                            </span>
-                                          )}
-                                          )
-                                        </span>
-                                        <button
-                                          className="btn btn-sm btn-answer"
-                                          onClick={() =>
-                                            handleAnswerAnalysis(
-                                              topic.topicId,
-                                              attempt.attempt_number || i + 1
-                                            )
-                                          }
-                                        >
-                                          Answer Analysis
-                                        </button>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
+                            </div>
 
-                      {/* Modal for Graph */}
-                      <div
-                        className="modal fade"
-                        id={`graphModal${idx}`}
-                        tabIndex="-1"
-                        aria-hidden="true"
-                      >
-                        <div className="modal-dialog modal-lg modal-dialog-centered">
-                          <div className="modal-content bg-dark text-white">
-                            <div className="modal-header">
-                              <h5 className="modal-title">
-                                Graph Analysis: {topic.topicTitle}
-                              </h5>
+                            <div className="mt-3 marks_progress">
                               <button
-                                type="button"
-                                className="btn-close btn-close-white"
-                                data-bs-dismiss="modal"
-                              ></button>
+                                className="btn btn-sm btn-outline w-100 d-flex justify-content-between align-items-center text-white ans_drp"
+                                onClick={() => toggleHistoryView(topic.topicId)}
+                              >
+                                Exam Marks History
+                                {expandedTopics[topic.topicId] ? (
+                                  <ChevronUp size={16} />
+                                ) : (
+                                  <ChevronDown size={16} />
+                                )}
+                              </button>
+
+                              {expandedTopics[topic.topicId] && (
+                                <div className="mt-2">
+                                  {topic.history.map((attempt, i) => {
+                                    const improvement =
+                                      attempt.improvement ?? 0;
+                                    return (
+                                      <div key={i} className="marks_hitory">
+                                        <div className="d-flex justify-content-between test_details_progress">
+                                          <strong>
+                                            Test{" "}
+                                            {attempt.attempt_number || i + 1}
+                                          </strong>
+                                          <span className="text-muted small">
+                                            {formatTimestamp(
+                                              attempt.submitted_at
+                                            )}
+                                          </span>
+                                        </div>
+                                        <div className="d-flex justify-content-between align-items-center mt-2">
+                                          <span>
+                                            <strong>{attempt.score}/10</strong>{" "}
+                                            (
+                                            {improvement > 0 ? (
+                                              <span className="text-success">
+                                                +{improvement.toFixed(1)} ↑
+                                              </span>
+                                            ) : improvement < 0 ? (
+                                              <span className="text-danger">
+                                                {improvement.toFixed(1)} ↓
+                                              </span>
+                                            ) : (
+                                              <span className="text-secondary">
+                                                0 →
+                                              </span>
+                                            )}
+                                            )
+                                          </span>
+                                          <button
+                                            className="btn btn-sm btn-answer"
+                                            onClick={() =>
+                                              handleAnswerAnalysis(
+                                                topic.topicId,
+                                                attempt.attempt_number || i + 1
+                                              )
+                                            }
+                                          >
+                                            Answer Analysis
+                                          </button>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </div>
-                            <div className="modal-body pt-5">
-                              <GraphAnalysis
-                                topicTitle={topic.topicTitle}
-                                history={topic.history}
-                              />
+                          </div>
+                        </div>
+
+                        {/* Modal for Graph */}
+                        <div
+                          className="modal fade"
+                          id={modalId}
+                          tabIndex="-1"
+                          aria-hidden="true"
+                        >
+                          <div className="modal-dialog modal-lg modal-dialog-centered">
+                            <div className="modal-content bg-dark text-white">
+                              <div className="modal-header">
+                                <h5 className="modal-title">
+                                  Graph Analysis: {topic.topicTitle}
+                                </h5>
+                                <button
+                                  type="button"
+                                  className="btn-close btn-close-white"
+                                  data-bs-dismiss="modal"
+                                ></button>
+                              </div>
+                              <div className="modal-body pt-5">
+                                <GraphAnalysis
+                                  topicTitle={topic.topicTitle}
+                                  history={topic.history}
+                                />
+                              </div>
                             </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ))

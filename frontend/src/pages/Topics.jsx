@@ -16,8 +16,7 @@ import { createClient } from "@supabase/supabase-js";
 import { useNavigate } from "react-router-dom";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { ClockPlus } from "lucide-react";
-import { FolderArchive } from 'lucide-react';
-
+import { FolderArchive } from "lucide-react";
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -251,6 +250,26 @@ const Topics = () => {
     }
   };
 
+  const handleArchiveTopic = async (topicId) => {
+    const confirmArchive = confirm(
+      "Are you sure you want to archive this topic?"
+    );
+    if (!confirmArchive) return;
+
+    const { error } = await supabase
+      .from("topics")
+      .update({ archive_status: "archived" })
+      .eq("topic_id", topicId)
+      .eq("user_id", userId);
+
+    if (error) {
+      console.error("Failed to archive topic:", error.message);
+      alert("Failed to archive topic.");
+    } else {
+      fetchTopics(); // Refresh after archiving
+    }
+  };
+
   return (
     <div className="chat chat-wrapper d-flex min-vh-100">
       {/* Sidebar and History */}
@@ -415,12 +434,20 @@ const Topics = () => {
                               {topic.topic_summary || "No summary available."}
                             </div>
                           )}
-                          <button
-                            className="btn btn-sm btn-cs mt-4"
-                            onClick={() => handleTakeExam(topic)}
-                          >
-                            Take Exam
-                          </button>
+                          <div className="d-flex justify-content-between align-items-center mt-4">
+                            <button
+                              className="btn btn-sm btn-cs"
+                              onClick={() => handleTakeExam(topic)}
+                            >
+                              Take Exam
+                            </button>
+                            <button
+                              className="btn btn-sm btn-outline-light"
+                              onClick={() => handleArchiveTopic(topic.topic_id)}
+                            >
+                              <FolderArchive />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>

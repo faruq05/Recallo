@@ -1,13 +1,17 @@
 from flask import Flask, request, jsonify, session
 from flask_cors import CORS, cross_origin
 from flask import make_response
+from flask import Blueprint
+from flask_mail import Mail, Message
+from email_utils import send_reminder_email
+from datetime import datetime, timezone, timedelta
+from flask import current_app
 import json
 import os
 import logging
 import re
 import uuid
 import hashlib
-from datetime import datetime
 from dotenv import load_dotenv
 from supabase import create_client
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
@@ -24,10 +28,13 @@ from langchain.schema import HumanMessage
 from process_pdf_for_quiz import process_pdf_for_quiz
 from QA_ANSWER import generate_and_save_mcqs
 from matching_q_a import evaluate_and_save_quiz
+from flask_caching import Cache
+
 
 
 # === Load Environment Variables ===
 load_dotenv()
+conversation_bp = Blueprint("conversations", __name__)
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://bhrwvazkvsebdxstdcow.supabase.co/")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
@@ -40,6 +47,8 @@ logging.basicConfig(level=logging.DEBUG)
 
 # === Initialize Flask App ===
 app = Flask(__name__)
+cache = Cache(config={'CACHE_TYPE': 'SimpleCache'})
+cache.init_app(app)
 app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5MB
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -56,6 +65,15 @@ CORS(app, resources={
     r"/*": {"origins": "*"}
     
 }, supports_credentials=True)
+
+# ─── Flask-Mail Configuration ─────────────────────
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = os.environ.get("MAIL_USERNAME")
+app.config['MAIL_PASSWORD'] = os.environ.get("MAIL_PASSWORD")
+app.config['MAIL_DEFAULT_SENDER'] = os.environ.get("MAIL_USERNAME")
+mail = Mail(app)
 
 # === Initialize Supabase & Langchain Models ===
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -424,7 +442,9 @@ def get_answer_analysis():
         }
     })
     
+# ===== FLASHCARD GENERATION ===== #
 @app.route('/generate_flashcards', methods=['POST'])
+@cache.memoize(timeout=3600) 
 def generate_flashcards():
     try:
         data = request.json
@@ -432,50 +452,110 @@ def generate_flashcards():
         topic_id = data.get("topic_id")
 
         if not all([user_id, topic_id]):
-            return jsonify({"error": "Missing parameters"}), 400
+            return jsonify({
+                "status": "error",
+                "message": "Missing user_id or topic_id"
+            }), 400
 
-        # 1. Fetch quiz data from Supabase
-        wrong_answers = supabase.table('quiz_answers') \
-            .select('selected_answer, quiz_questions(prompt, answer, explanation)') \
+        # Initialize Gemini model
+        llm = ChatGoogleGenerativeAI(
+            model="gemini-2.5-flash",
+            google_api_key=GEMINI_API_KEY,
+            temperature=0.3
+        )
+
+        # Get recent attempts for this user and topic
+        attempts_res = supabase.table('quiz_attempts') \
+            .select('attempt_id') \
             .eq('user_id', user_id) \
-            .eq('quiz_questions.topic_id', topic_id) \
-            .eq('is_correct', False) \
-            .order('created_at', ascending=False) \
-            .limit(6) \
+            .eq('topic_id', topic_id) \
+            .order('submitted_at') \
+            .limit(5) \
             .execute()
 
-        right_answers = supabase.table('quiz_answers') \
-            .select('quiz_questions(prompt, answer, explanation)') \
-            .eq('user_id', user_id) \
-            .eq('quiz_questions.topic_id', topic_id) \
-            .eq('is_correct', True) \
-            .order('created_at', ascending=False) \
-            .limit(4) \
+        if not attempts_res.data:
+            return jsonify({
+                "status": "error",
+                "message": "No quiz attempts found for this topic"
+            }), 404
+
+        attempt_ids = [a['attempt_id'] for a in attempts_res.data]
+
+        # Get answers from these attempts
+        answers_res = supabase.table('quiz_answers') \
+            .select('question_id, is_correct, selected_answer, quiz_questions(prompt, answer)') \
+            .in_('attempt_id', attempt_ids) \
+            .order('created_at') \
+            .limit(20) \
             .execute()
 
-        # 2. Generate flashcards with Gemini
+        if not answers_res.data:
+            return jsonify({
+                "status": "error",
+                "message": "No quiz answers found"
+            }), 404
+
+        # Implement 60/40 split (wrong/correct answers)
+        wrong_answers = []
+        correct_answers = []
+        
+        for answer in answers_res.data:
+            if answer['is_correct']:
+                correct_answers.append(answer)
+            else:
+                wrong_answers.append(answer)
+
+        # Take up to 6 wrong answers and 4 correct ones
+        selected_answers = wrong_answers[:6] + correct_answers[:4]
+        
+        # Generate flashcards
         flashcards = []
-        for item in wrong_answers.data + right_answers.data:
-            prompt = f"""
-            Transform this quiz question into a conceptual flashcard:
-            - Question: {item['quiz_questions']['prompt']}
-            - Correct Answer: {item['quiz_questions']['answer']}
-            - User's Mistake: {item.get('selected_answer', 'N/A')}
-            
-            Generate:
-            1. Concept title (max 5 words)
-            2. 1-sentence definition
-            3. Common mistake explanation (if applicable)
-            """
-            
-            response = model.generate_content(prompt)
-            flashcards.append(response.text)
+        for answer in selected_answers:
+            try:
+                question = answer['quiz_questions']
+                if not question:
+                    continue
 
-        return jsonify({"flashcards": flashcards})
+                is_wrong = not answer['is_correct']
+                prompt = f"""Create a study concept card with this format:
+                1. Core Concept (3-5 words)
+                2. Key Theory (1 sentence)
+                {"3. Common Mistake (if applicable)" if is_wrong else ""}
+
+                Based on:
+                - Question: {question['prompt']}
+                - Correct Answer: {question['answer']}
+                {f"- User's Wrong Answer: {answer['selected_answer']}" if is_wrong else ""}"""
+
+                response = llm.invoke(prompt)
+                content = response.content.split('\n')
+                
+                flashcards.append({
+                    "concept": content[0].replace('1. ', '').strip() if len(content) > 0 else "Concept",
+                    "definition": content[1].replace('2. ', '').strip() if len(content) > 1 else "Definition not available",
+                    "mistake": content[2].replace('3. ', '').strip() if is_wrong and len(content) > 2 else ""
+                })
+            except Exception as e:
+                print(f"Error generating card: {str(e)}")
+                continue
+
+        if not flashcards:
+            return jsonify({
+                "status": "error",
+                "message": "Failed to generate any flashcards"
+            }), 500
+
+        return jsonify({
+            "status": "success",
+            "data": flashcards
+        })
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
+        print(f"Server error: {str(e)}")
+        return jsonify({
+            "status": "error",
+            "message": "Internal server error"
+        }), 500
 # Helper to convert 'A', 'B' etc. to option text
 def option_letter_to_text(letter, answer_option_text):
     if not letter or not answer_option_text:
@@ -816,6 +896,346 @@ def get_user_progress(user_id):
     except Exception as e:
         logging.error(f"Error fetching progress: {e}")
         return jsonify({"error": "Failed to fetch progress"}), 500
+
+
+# mail configuration functions and route
+def is_topic_notification_enabled(user_id, topic_id):
+    """Return True if user has not disabled notifications for this topic."""
+    resp = supabase.table("user_topic_notification_preferences") \
+        .select("enabled") \
+        .eq("user_id", user_id) \
+        .eq("topic_id", topic_id) \
+        .single() \
+        .execute()
+    if resp.error:
+        current_app.logger.error(f"Pref lookup error: {resp.error.message}")
+        return True
+    return resp.data.get("enabled", True)
+
+def is_user_email_notification_enabled_global(user_id):
+    """Check if user has global email notifications enabled (default: True)"""
+    try:
+        resp = supabase.table("user_notification_settings") \
+            .select("email_notifications_enabled") \
+            .eq("user_id", user_id) \
+            .single() \
+            .execute()
+
+        if resp.error or not resp.data:
+            return True  # Default to enabled
+
+        return resp.data.get("email_notifications_enabled", True)
+    except Exception as e:
+        logging.error(f"Error checking global email notification settings: {e}")
+        return True
+
+def is_daily_reminders_enabled(user_id):
+    """Check if user has daily reminders enabled (default: True)"""
+    try:
+        resp = supabase.table("user_notification_settings") \
+            .select("daily_reminders_enabled") \
+            .eq("user_id", user_id) \
+            .single() \
+            .execute()
+
+        if resp.error or not resp.data:
+            return True  # Default to enabled
+
+        return resp.data.get("daily_reminders_enabled", True)
+    except Exception as e:
+        logging.error(f"Error checking daily reminders settings: {e}")
+        return True
+
+# Assume user_id, topic_id, and score are already defined
+
+@app.route("/send-exam-email", methods=["POST"])
+def send_exam_email():
+    user_id = request.json.get("user_id")
+    topic_id = request.json.get("topic_id")
+    score = request.json.get("score")
+
+    topic_resp = supabase.table("topics").select("title").eq("topic_id", topic_id).single().execute()
+    user_resp = supabase.table("users").select("email", "name").eq("user_id", user_id).single().execute()
+
+    if topic_resp.data and user_resp.data:
+        title = topic_resp.data["title"]
+        email = user_resp.data["email"]
+        name = user_resp.data["name"] or "Learner"
+
+        success = send_exam_result_email(email, name, title, score)
+        return jsonify({"sent": success}), 200
+    return jsonify({"error": "Missing user or topic"}), 400
+
+def send_exam_result_email(user_email, user_name, topic_title, score):
+    """Send a detailed and friendly result email after quiz submission."""
+    subject = f"Your Result for: {topic_title}"
+
+    if score >= 8:
+        message = f"""
+Hi {user_name},
+
+🎉 Congratulations on your excellent performance!
+
+You scored {score}/10 in the topic: "{topic_title}".
+
+Keep up the great work and continue sharpening your skills. You're doing fantastic!
+
+Best wishes,  
+The Recallo Team
+"""
+    elif score >= 5:
+        message = f"""
+Hi {user_name},
+
+👍 You scored {score}/10 on the topic: "{topic_title}".
+
+That's a solid effort! With a little more practice, you'll master this topic in no time. Would you like to retake it for a better score?
+
+Stay motivated!  
+The Recallo Team
+"""
+    else:
+        message = f"""
+Hi {user_name},
+
+💡 You scored {score}/10 on the topic: "{topic_title}".
+
+Don't be discouraged! Every expert was once a beginner. This is your chance to come back stronger — give it another go and improve your score.
+
+We're rooting for you!  
+The Recallo Team
+"""
+
+    return send_email(user_email, subject, message.strip())
+
+def has_been_notified_today(user_id, topic_id, notif_type):
+    """Avoid duplicate daily/weekly sends."""
+    today = datetime.now(timezone.utc).date().isoformat()
+    resp = supabase.table("user_notifications") \
+        .select("id") \
+        .eq("user_id", user_id) \
+        .eq("topic_id", topic_id) \
+        .eq("notification_type", notif_type) \
+        .eq("sent_date", today) \
+        .limit(1) \
+        .execute()
+    return bool(resp.data)
+
+def send_email(to, subject, body):
+    """Use Flask-Mail to send the message."""
+    try:
+        msg = Message(subject, recipients=[to])
+        msg.body = body
+        mail.send(msg)
+        return True
+    except Exception as e:
+        current_app.logger.error(f"Mail send failed: {e}")
+        return False
+
+def record_notification(user_id, topic_id, notif_type, message):
+    """Log the sent notification."""
+    now = datetime.now(timezone.utc)  # ✅ updated line
+    next_at = now + (timedelta(days=1) if notif_type == "daily" else timedelta(days=7))
+    supabase.table("user_notifications").insert({
+        "user_id": user_id,
+        "topic_id": topic_id,
+        "notification_type": notif_type,
+        "sent_at": now.isoformat(),
+        "sent_date": now.date().isoformat(),
+        "next_notification_at": next_at.isoformat(),
+        "status": "sent",
+        "message": message
+    }).execute()
+# ─── Core Processor ───────────────────────────────────────────────────────────
+def process_notifications():
+    """
+    Fetch each user/topic from user_topic_review_features
+    and send daily or weekly reminders according to score & preferences.
+    """
+    # 1. Grab all topic review features
+    try:
+        resp = supabase.table("user_topic_review_features").select(
+            "user_id, topic_id, title, quiz_score"
+        ).execute()
+
+        if not resp.data:
+            logging.info("No review features found")
+            return
+    except Exception as e:
+        logging.error(f"Failed to fetch review features: {e}")
+        return
+
+    for row in resp.data:
+        uid = row["user_id"]
+        tid = row["topic_id"]
+        title = row["title"]
+        score = row["quiz_score"]
+
+        # 2. Check if user has global email notifications enabled
+        if not is_user_email_notification_enabled_global(uid):
+            continue
+
+        # 3. Check if user has daily reminders enabled (for scores < 8)
+        if score < 8 and not is_daily_reminders_enabled(uid):
+            continue
+
+        # 4. Skip if user turned off notifications for this specific topic
+        if not is_topic_notification_enabled(uid, tid):
+            continue
+
+        # 5. Determine notification type
+        if score < 8:
+            nt = "daily"
+        else:
+            nt = "weekly"
+
+        # 6. Avoid duplicates
+        if has_been_notified_today(uid, tid, nt):
+            continue
+
+        # 7. Lookup user email and name
+        try:
+            user_resp = supabase.table("users").select("email, name").eq("user_id", uid).single().execute()
+            if not user_resp.data:
+                logging.error(f"Could not find user email for {uid}")
+                continue
+        except Exception as e:
+            logging.error(f"Error fetching user {uid}: {e}")
+            continue
+
+        # 8. Send & record
+        user_email = user_resp.data["email"]
+        user_name = user_resp.data.get("name", "Learner")
+
+        if send_reminder_email(user_email, user_name, title, score, nt):
+            message_body = f"{nt.title()} reminder sent for {title} (score: {score}/10)"
+            record_notification(uid, tid, nt, message_body)
+            logging.info(f"✅ Sent {nt} reminder to {user_email} for topic: {title}")
+        else:
+            logging.error(f"❌ Failed to send {nt} reminder to {user_email}")
+            
+# ─── Optional Trigger Route ────────────────────────────────────────────────────
+@app.route("/api/run-notifications", methods=["POST"])
+def run_notifications_route():
+    # (Protect this route in prod with an API key or auth check!)
+    process_notifications()
+    return jsonify({"message": "Notifications processed"}), 200
+
+# ─── User Notification Settings Endpoints ─────────────────────────────────────
+@app.route("/api/notification-settings/<user_id>", methods=["GET"])
+def get_notification_settings(user_id):
+    """Get user's notification preferences"""
+    try:
+        # Get global email notification setting
+        global_resp = supabase.table("user_notification_settings") \
+            .select("email_notifications_enabled, daily_reminders_enabled") \
+            .eq("user_id", user_id) \
+            .single() \
+            .execute()
+
+        # Get topic-specific notification preferences
+        topic_resp = supabase.table("user_topic_notification_preferences") \
+            .select("topic_id, enabled") \
+            .eq("user_id", user_id) \
+            .execute()
+
+        # Default settings if none exist
+        global_settings = {
+            "email_notifications_enabled": True,
+            "daily_reminders_enabled": True
+        }
+
+        if global_resp.data:
+            global_settings.update(global_resp.data)
+
+        topic_settings = {}
+        if topic_resp.data:
+            for item in topic_resp.data:
+                topic_settings[item["topic_id"]] = item["enabled"]
+
+        return jsonify({
+            "global_settings": global_settings,
+            "topic_settings": topic_settings
+        }), 200
+
+    except Exception as e:
+        logging.error(f"Error fetching notification settings: {e}")
+        return jsonify({"error": "Failed to fetch notification settings"}), 500
+
+@app.route("/api/notification-settings/<user_id>", methods=["PUT"])
+def update_notification_settings(user_id):
+    """Update user's notification preferences"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Missing JSON payload"}), 400
+
+        global_settings = data.get("global_settings", {})
+        topic_settings = data.get("topic_settings", {})
+
+        # Update global settings
+        if global_settings:
+            # Check if record exists
+            existing_resp = supabase.table("user_notification_settings") \
+                .select("id") \
+                .eq("user_id", user_id) \
+                .single() \
+                .execute()
+
+            settings_data = {
+                "user_id": user_id,
+                "email_notifications_enabled": global_settings.get("email_notifications_enabled", True),
+                "daily_reminders_enabled": global_settings.get("daily_reminders_enabled", True),
+                "updated_at": datetime.now().isoformat()
+            }
+
+            if existing_resp.data:
+                # Update existing
+                supabase.table("user_notification_settings") \
+                    .update(settings_data) \
+                    .eq("user_id", user_id) \
+                    .execute()
+            else:
+                # Insert new
+                supabase.table("user_notification_settings") \
+                    .insert(settings_data) \
+                    .execute()
+
+        # Update topic-specific settings
+        for topic_id, enabled in topic_settings.items():
+            # Check if record exists
+            existing_topic_resp = supabase.table("user_topic_notification_preferences") \
+                .select("id") \
+                .eq("user_id", user_id) \
+                .eq("topic_id", topic_id) \
+                .single() \
+                .execute()
+
+            topic_data = {
+                "user_id": user_id,
+                "topic_id": topic_id,
+                "enabled": enabled,
+                "updated_at": datetime.now().isoformat()
+            }
+
+            if existing_topic_resp.data:
+                # Update existing
+                supabase.table("user_topic_notification_preferences") \
+                    .update(topic_data) \
+                    .eq("user_id", user_id) \
+                    .eq("topic_id", topic_id) \
+                    .execute()
+            else:
+                # Insert new
+                supabase.table("user_topic_notification_preferences") \
+                    .insert(topic_data) \
+                    .execute()
+
+        return jsonify({"message": "Notification settings updated successfully"}), 200
+
+    except Exception as e:
+        logging.error(f"Error updating notification settings: {e}")
+        return jsonify({"error": "Failed to update notification settings"}), 500
 
 # === Run App ===
 if __name__ == '__main__':

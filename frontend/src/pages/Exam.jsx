@@ -27,6 +27,7 @@ const Exam = () => {
     fileName = "SampleFile.pdf",
     topicId = null,
   } = location.state || {};
+  const isTopicMissing = !topicId;
 
   // Exam states
   const [examStarted, setExamStarted] = useState(false);
@@ -201,6 +202,20 @@ const Exam = () => {
   const allAnswered =
     answers.length === questions.length && answers.every((a) => a !== null);
 
+  if (isTopicMissing) {
+    return (
+      <div className="d-flex justify-content-center align-items-center vh-100 text-white flex-column text-center bg-dark">
+        <h2 className="mb-3">Oops! No Topic Selected</h2>
+        <p className="mb-4">
+          Please choose a topic from the <strong>Topics</strong> page or upload
+          a file to generate one.
+        </p>
+        <button className="btn btn-cs" onClick={() => navigate("/topics")}>
+          Go to Topics
+        </button>
+      </div>
+    );
+  }
   return (
     <div className="chat chat-wrapper chat_scroll d-flex min-vh-100">
       {/* Sidebar and History */}
