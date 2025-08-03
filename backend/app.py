@@ -7,7 +7,9 @@ import logging
 import re
 import uuid
 import hashlib
-from datetime import datetime
+import random
+from datetime import datetime 
+from datetime import date
 from dotenv import load_dotenv
 from supabase import create_client
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
@@ -50,9 +52,11 @@ CORS(app, resources={
     r"/ask": {"origins": "http://localhost:5173", "methods": ["POST", "OPTIONS"]},
     r"/quiz-question": {"origins": "http://localhost:5173", "methods": ["POST", "OPTIONS"]},
     r"/generate-questions": {"origins": "http://localhost:5173", "methods": ["POST", "OPTIONS"]},
+     r"/api/generate_flashcards": {"origins": "http://localhost:5173", "methods": ["POST", "OPTIONS"]},
     r"/submit-answers": {"origins": "http://localhost:5173", "methods": ["POST", "OPTIONS"]},
     r"/api/progress/.*": {"origins": "http://localhost:5173", "methods": ["GET", "OPTIONS"]},
     r"/api/answer-analysis": {"origins": "http://localhost:5173", "methods": ["GET", "OPTIONS"]},
+    r"/api/update-weak-topics": {"origins": "http://localhost:5173", "methods": ["POST", "OPTIONS"]},
     r"/*": {"origins": "*"}
     
 }, supports_credentials=True)
@@ -192,6 +196,61 @@ def upload_file():
     return jsonify({"error": "Invalid file type"}), 400
 
 
+
+# --- Endpoint to update weak topics ---
+@app.route("/api/update-weak-topics", methods=["POST"])
+def update_weak_topics():
+    data = request.get_json()
+    user_id = data.get("user_id")
+
+    if not user_id:
+        return jsonify({"error": "user_id is required"}), 400
+
+    today = date.today().isoformat()
+
+    # Step 1: Find overdue topics
+    res = supabase.table("user_topic_review_features") \
+        .select("topic_id") \
+        .eq("user_id", user_id) \
+        .lt("next_review_date", today) \
+        .execute()
+
+    if not res.data:
+        return jsonify({"message": "No topics to update", "updated_count": 0})
+
+    topic_ids = [row["topic_id"] for row in res.data]
+
+    # Step 2: Update topic_status in 'topics' table
+    for topic_id in topic_ids:
+        supabase.table("topics") \
+            .update({"topic_status": "Weak"}) \
+            .eq("user_id", user_id) \
+            .eq("topic_id", topic_id) \
+            .execute()
+            
+    attempt_res = supabase.table("quiz_attempts") \
+            .select("attempt_id") \
+            .eq("user_id", user_id) \
+            .eq("topic_id", topic_id) \
+            .order("submitted_at", desc=True) \
+            .limit(1) \
+            .execute()
+
+    if attempt_res.data:
+            attempt_id = attempt_res.data[0]["attempt_id"]
+            supabase.table("quiz_attempts") \
+                .update({"score": 0}) \
+                .eq("attempt_id", attempt_id) \
+                .execute()
+
+    return jsonify({
+        "message": f"Updated {len(topic_ids)} topics to 'Weak'.",
+        "updated_count": len(topic_ids),
+        "topic_ids": topic_ids
+    })
+
+
+
 # topic jsx route
 @app.route('/quiz-question', methods=['POST'])
 def quiz_question():
@@ -262,11 +321,13 @@ def generate_questions():
         return response, 204
 
     data = request.get_json()
+    print("the data is ", data)
+    user_id = data.get("user_id")
     topic_id = data.get("topic_id")
     difficulty = data.get("difficulty_mode", "hard")
 
     try:
-        questions = generate_and_save_mcqs(topic_id, GEMINI_API_KEY, difficulty)
+        questions = generate_and_save_mcqs(topic_id, GEMINI_API_KEY, difficulty,user_id)
 
         # Strip correct_answer for frontend
         questions_for_frontend = [
@@ -423,6 +484,197 @@ def get_answer_analysis():
             "submitted_at": selected_attempt.get("submitted_at")
         }
     })
+    
+    
+# ===== FLASHCARD GENERATION ===== #
+@app.route("/api/generate_flashcards", methods=["POST"])
+def generate_flashcards():
+    try:
+        data = request.get_json()
+        attempt_id = data.get("attempt_id")
+        user_id = data.get("user_id")
+        topic_id = data.get("topic_id")
+        print(f"Attempt ID: {attempt_id}, User ID: {user_id}")
+
+        if not attempt_id or not user_id:
+            return jsonify({"error": "Missing attempt_id or user_id"}), 400
+        
+        
+        existing = supabase.from_("flashcards") \
+            .select("core_concept, key_theory, common_mistake") \
+            .eq("user_id", user_id) \
+            .eq("attempt_id", attempt_id) \
+            .execute()
+
+        if existing.data and len(existing.data) == 10:
+            return jsonify({
+                "flashcards": existing.data,
+                "message": "fetched",
+            })
+        
+        
+        # Step 1: Fetch quiz answers for this attempt
+        answers_response = supabase.from_("quiz_answers").select(
+            "question_id, selected_answer, is_correct"
+        ).eq("attempt_id", attempt_id).execute()
+
+        quiz_answers = answers_response.data or []
+        
+        if not quiz_answers:
+            return jsonify({"error": "No answers found for this attempt"}), 404
+        
+        question_ids = [qa["question_id"] for qa in quiz_answers]
+        
+        # Step 2: Fetch corresponding questions
+        questions_response = supabase.from_("quiz_questions").select(
+            "question_id, prompt, answer, explanation, answer_option_text, concept_id"
+        ).in_("question_id", question_ids).execute()
+
+        question_map = {q["question_id"]: q for q in questions_response.data}
+        
+        # Fetch merged content from the topic
+        topic_response = supabase.from_("topics").select("merged_content").eq("topic_id", topic_id).single().execute()
+        merged_content = topic_response.data.get("merged_content") if topic_response.data else None
+
+        
+        merged = []
+        for qa in quiz_answers:
+            q = question_map.get(qa["question_id"])
+            if q:
+                merged.append({
+                    "question_id": qa["question_id"],
+                    "prompt": q["prompt"],
+                    "options": q["answer_option_text"],
+                    "correct_answer": q["answer"],
+                    "selected_answer": qa["selected_answer"],
+                    "is_correct": qa["is_correct"]
+                })
+                
+        if not merged:
+            return jsonify({"error": "No matching questions for answers"}), 404
+                
+        # --- Step 4: Sample 8 incorrect + (2 correct or more) ---
+        incorrect = [item for item in merged if item["is_correct"] is False]
+        correct = [item for item in merged if item["is_correct"] is True]
+
+        random.shuffle(incorrect)
+        random.shuffle(correct)
+
+        incorrect_sample = incorrect[:min(8, len(incorrect))]
+        remaining = 10 - len(incorrect_sample)
+        correct_sample = correct[:min(remaining, len(correct))]
+
+        flashcards_base = incorrect_sample + correct_sample
+        random.shuffle(flashcards_base)
+        
+        
+        # --- Step 5: Format examples for LLM prompt ---
+        examples = [
+            {
+                "question": item["prompt"],
+                "correct_answer": item["correct_answer"],
+                "user_answer": item["selected_answer"],
+                "is_wrong": item["is_correct"] is False
+            }
+            for item in flashcards_base
+        ]
+
+        prompt_examples = "\n".join(
+            f"Q: {ex['question']}\nA: {ex['correct_answer']}\n"
+            f"{'User Mistake: ' + (ex['user_answer'] or 'N/A') if ex['is_wrong'] else ''}"
+            for ex in examples
+)
+
+
+
+        # System prompt
+        system_prompt = """You are a study assistant that generates concept flashcards from quiz questions.
+
+            Each flashcard must contain:
+
+            1. "core_concept" — the fundamental concept
+            2. "key_theory" — a clear explanation of the concept
+            3. "common_mistake" — (only if user got it wrong)
+
+            🔁 You MUST return **exactly 10 items** as a JSON array.
+
+            💡 Format:
+            [
+            {
+                "core_concept": "...",
+                "key_theory": "...",
+                "common_mistake": "..." // only if relevant
+            },
+            ...
+            ]
+
+            ⛔️ Do not include any markdown, headings, or extra text.
+            ⛔️ Do not repeat items. Stop after 10.
+            ✅ Output should start with `[` and end with `]`.
+            """
+
+
+
+        # final_prompt = f"{system_prompt}\n\nQuiz Questions:\n{prompt_examples}"
+        final_prompt = f"{system_prompt}\n\n📚 Topic Context:\n{merged_content or 'N/A'}\n\nQuiz Questions:\n{prompt_examples}"
+
+        
+        
+        # --- Step 6: Log for debugging ---
+        print("\n🧪 Sampled Flashcard Data:")
+        for ex in examples:
+            print(json.dumps(ex, indent=2))
+
+        print("\n🧠 Final Prompt Sent to LLM:")
+        print(final_prompt)
+
+        # --- Step 7: LLM Call ---
+        llm_response = llm.invoke([HumanMessage(content=final_prompt)])
+        raw_text = llm_response.content
+
+        try:
+            flashcards = json.loads(raw_text)
+        except json.JSONDecodeError:
+            print("\n❌ LLM response parsing failed:")
+            print(raw_text)
+            return jsonify({
+                "error": "Failed to parse flashcards",
+                "llm_response": raw_text
+            }), 500
+
+        if (
+            not isinstance(flashcards, list)
+            or len(flashcards) != 10
+            or not all("core_concept" in fc and "key_theory" in fc for fc in flashcards)
+        ):
+            raise ValueError("Flashcards must contain core_concept and key_theory, 10 items")
+
+        print("\n✅ Final Flashcards:")
+        print(json.dumps(flashcards, indent=2))
+
+        # ✅ Step 4: Save flashcards
+        now = datetime.now().isoformat()
+        records = [{
+            "user_id": user_id,
+            "attempt_id": attempt_id,
+            "topic_id": topic_id,
+            "core_concept": fc["core_concept"],
+            "key_theory": fc["key_theory"],
+            "common_mistake": fc.get("common_mistake"),
+            "created_at": now
+        } for fc in flashcards]
+
+        insert = supabase.from_("flashcards").insert(records).execute()
+        if not insert.data:
+            raise Exception("Failed to save flashcards to Supabase")
+
+        return jsonify({"flashcards": flashcards,"message": "Generated"}), 200
+
+    except Exception as e:
+        logging.exception("Flashcard generation failed")
+        return jsonify({"error": str(e)}), 500
+
+    
 
 # Helper to convert 'A', 'B' etc. to option text
 def option_letter_to_text(letter, answer_option_text):
