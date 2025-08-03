@@ -46,7 +46,7 @@ const Exam = () => {
       const res = await fetch("http://localhost:5000/generate-questions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic_id: topicId, difficulty_mode: "hard" }),
+        body: JSON.stringify({ topic_id: topicId, difficulty_mode: "hard", user_id: userId }),
       });
       const data = await res.json();
 
@@ -59,15 +59,14 @@ const Exam = () => {
         console.log("📋 Loaded Questions:");
         data.questions.forEach((q, index) => {
           console.log(
-            `Question ${index + 1} | ID: ${q.question_id || q.id} | Text: ${
-              q.question_text
+            `Question ${index + 1} | ID: ${q.question_id || q.id} | Text: ${q.question_text
             }`
           );
         });
       } else {
         alert(
           "Failed to generate questions: " +
-            (data.error || "No questions received")
+          (data.error || "No questions received")
         );
       }
     } catch (err) {

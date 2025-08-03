@@ -64,20 +64,35 @@ const Topics = () => {
   // };
 
   const fetchTopics = async () => {
-    const { data, error } = await supabase
-      .from("topics")
-      .select("*")
-      .eq("user_id", userId)
-      .eq("archive_status", "not_archived") // exclude archived
-      .order("created_at", { ascending: false });
+    try {
+      // 1. Trigger backend update of weak topics
+      await fetch("http://localhost:5000/api/update-weak-topics", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ user_id: userId })
+      });
 
-    if (error) {
-      console.error("Failed to fetch topics:", error.message);
-      return;
+      // 2. Now fetch topics from Supabase
+      const { data, error } = await supabase
+        .from("topics")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("archive_status", "not_archived") // exclude archived
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Failed to fetch topics:", error.message);
+        return;
+      }
+
+      setTopics(data || []);
+    } catch (err) {
+      console.error("Error updating and fetching topics:", err);
     }
-
-    setTopics(data || []);
   };
+
 
   // const handleFileSelect = async (file) => {
   //   if (!userId) {
@@ -153,7 +168,7 @@ const Topics = () => {
             const result = JSON.parse(xhr.responseText);
             alert(
               result.message ||
-                "File processed successfully. Topics saved to Supabase."
+              "File processed successfully. Topics saved to Supabase."
             );
             fetchTopics();
             resolve();
@@ -339,13 +354,12 @@ const Topics = () => {
                         <div className="card-body">
                           <div className="topic_status d-flex justify-content-between align-items-center mb-4">
                             <span
-                              className={`badge m-0 ${
-                                topic.topic_status === "Weak"
+                              className={`badge m-0 ${topic.topic_status === "Weak"
                                   ? "badge-weak"
                                   : topic.topic_status === "Completed"
-                                  ? "badge-completed"
-                                  : ""
-                              }`}
+                                    ? "badge-completed"
+                                    : ""
+                                }`}
                             >
                               {topic.topic_status}
                             </span>
