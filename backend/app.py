@@ -28,14 +28,14 @@ from langchain.schema import HumanMessage
 from process_pdf_for_quiz import process_pdf_for_quiz
 from QA_ANSWER import generate_and_save_mcqs
 from matching_q_a import evaluate_and_save_quiz
-from flask_caching import Cache
+from langchain.schema import HumanMessage
 
 
 
 # === Load Environment Variables ===
 load_dotenv()
 conversation_bp = Blueprint("conversations", __name__)
-
+flashcards_bp = Blueprint("flashcards", __name__)
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://bhrwvazkvsebdxstdcow.supabase.co/")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -47,8 +47,6 @@ logging.basicConfig(level=logging.DEBUG)
 
 # === Initialize Flask App ===
 app = Flask(__name__)
-cache = Cache(config={'CACHE_TYPE': 'SimpleCache'})
-cache.init_app(app)
 app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5MB
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -249,17 +247,17 @@ def quiz_question():
         if not os.path.exists(app.config['UPLOAD_FOLDER']):
             os.makedirs(app.config['UPLOAD_FOLDER'])
 
-        temp_filename = f"{uuid.uuid4()}_{file.filename}"
-        temp_path = os.path.join(app.config['UPLOAD_FOLDER'], temp_filename)
-        file.save(temp_path)
+        temfilename = f"{uuid.uuid4()}_{file.filename}"
+        tempath = os.path.join(app.config['UPLOAD_FOLDER'], temfilename)
+        file.save(tempath)
 
         # Process PDF for quiz topics and save them to Supabase
-        result = process_pdf_for_quiz(temp_path, GEMINI_API_KEY, user_id, supabase,file_hash)
+        result = process_pdf_for_quiz(tempath, GEMINI_API_KEY, user_id, supabase,file_hash)
 
         # Clean up
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
-            logging.info(f"🗑️ Deleted temporary file: {temp_path}")
+        if os.path.exists(tempath):
+            os.remove(tempath)
+            logging.info(f"🗑️ Deleted temporary file: {tempath}")
 
         if result and result.get("status") == "success":
             return jsonify({"message": "Topics saved successfully."}), 200
@@ -443,119 +441,103 @@ def get_answer_analysis():
     })
     
 # ===== FLASHCARD GENERATION ===== #
-@app.route('/generate_flashcards', methods=['POST'])
-@cache.memoize(timeout=3600) 
+@app.route("/api/generate_flashcards", methods=["POST"])
 def generate_flashcards():
     try:
-        data = request.json
+        data = request.get_json()
+        attempt_id = data.get("attempt_id")
         user_id = data.get("user_id")
-        topic_id = data.get("topic_id")
 
-        if not all([user_id, topic_id]):
-            return jsonify({
-                "status": "error",
-                "message": "Missing user_id or topic_id"
-            }), 400
+        if not attempt_id or not user_id:
+            return jsonify({"error": "Missing attempt_id or user_id"}), 400
 
-        # Initialize Gemini model
-        llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash",
-            google_api_key=GEMINI_API_KEY,
-            temperature=0.3
+        # Fetch quiz data
+        try:
+            supa_response = supabase.rpc("get_quiz_questions_with_answers", {
+                "p_attempt_id": attempt_id,
+                "p_user_id": user_id
+            }).execute()
+        except Exception as exc:
+            return jsonify({"error": f"Supabase RPC call failed: {str(exc)}"}), 500
+
+        if not supa_response.data:
+            return jsonify({"error": "No quiz data found for this attempt"}), 404
+
+        all_data = supa_response.data
+
+        # Process data
+        incorrect = [item for item in all_data if item.get("is_correct") is False]
+        correct = [item for item in all_data if item.get("is_correct") is True]
+
+        # Sample 10 flashcards (8 incorrect + 2 correct)
+        incorrect_sample = incorrect[:min(8, len(incorrect))]
+        remaining = 10 - len(incorrect_sample)
+        correct_sample = correct[:min(remaining, len(correct))]
+
+        # Prepare prompt examples
+        examples = []
+        for item in incorrect_sample + correct_sample:
+            examples.append({
+                "question": item.get("prompt"),
+                "correct_answer": item.get("answer"),
+                "user_answer": item.get("selected_answer"),
+                "is_wrong": not item.get("is_correct")
+            })
+
+        # System prompt
+        system_prompt = """You are a study assistant that generates concept flashcards from quiz questions.
+Each flashcard should have these fields:
+1. 'core_concept' - The fundamental concept being tested
+2. 'key_theory' - The underlying theory or principle
+3. 'common_mistake' - (Only if user got it wrong) Why the mistake happens
+
+Return exactly 10 flashcards in JSON format like this:
+[{
+  "core_concept": "...",
+  "key_theory": "...",
+  "common_mistake": "..." // only if relevant
+}, ...]"""
+
+        # Prepare final prompt
+        prompt_examples = "\n".join(
+            f"Q: {ex['question']}\nA: {ex['correct_answer']}\n"
+            f"{'User Mistake: ' + ex['user_answer'] if ex['is_wrong'] else ''}\n"
+            for ex in examples
         )
 
-        # Get recent attempts for this user and topic
-        attempts_res = supabase.table('quiz_attempts') \
-            .select('attempt_id') \
-            .eq('user_id', user_id) \
-            .eq('topic_id', topic_id) \
-            .order('submitted_at') \
-            .limit(5) \
-            .execute()
+        final_prompt = f"{system_prompt}\n\nQuiz Questions:\n{prompt_examples}"
 
-        if not attempts_res.data:
-            return jsonify({
-                "status": "error",
-                "message": "No quiz attempts found for this topic"
-            }), 404
-
-        attempt_ids = [a['attempt_id'] for a in attempts_res.data]
-
-        # Get answers from these attempts
-        answers_res = supabase.table('quiz_answers') \
-            .select('question_id, is_correct, selected_answer, quiz_questions(prompt, answer)') \
-            .in_('attempt_id', attempt_ids) \
-            .order('created_at') \
-            .limit(20) \
-            .execute()
-
-        if not answers_res.data:
-            return jsonify({
-                "status": "error",
-                "message": "No quiz answers found"
-            }), 404
-
-        # Implement 60/40 split (wrong/correct answers)
-        wrong_answers = []
-        correct_answers = []
-        
-        for answer in answers_res.data:
-            if answer['is_correct']:
-                correct_answers.append(answer)
-            else:
-                wrong_answers.append(answer)
-
-        # Take up to 6 wrong answers and 4 correct ones
-        selected_answers = wrong_answers[:6] + correct_answers[:4]
-        
-        # Generate flashcards
-        flashcards = []
-        for answer in selected_answers:
-            try:
-                question = answer['quiz_questions']
-                if not question:
-                    continue
-
-                is_wrong = not answer['is_correct']
-                prompt = f"""Create a study concept card with this format:
-                1. Core Concept (3-5 words)
-                2. Key Theory (1 sentence)
-                {"3. Common Mistake (if applicable)" if is_wrong else ""}
-
-                Based on:
-                - Question: {question['prompt']}
-                - Correct Answer: {question['answer']}
-                {f"- User's Wrong Answer: {answer['selected_answer']}" if is_wrong else ""}"""
-
-                response = llm.invoke(prompt)
-                content = response.content.split('\n')
+        # Call LLM
+        try:
+            llm_response = llm.invoke([HumanMessage(content=final_prompt)])
+            raw_text = llm_response.content
+            
+            # Parse and validate response
+            flashcards = json.loads(raw_text)
+            if not isinstance(flashcards, list) or len(flashcards) != 10:
+                raise ValueError("Invalid flashcard format or count")
                 
-                flashcards.append({
-                    "concept": content[0].replace('1. ', '').strip() if len(content) > 0 else "Concept",
-                    "definition": content[1].replace('2. ', '').strip() if len(content) > 1 else "Definition not available",
-                    "mistake": content[2].replace('3. ', '').strip() if is_wrong and len(content) > 2 else ""
-                })
-            except Exception as e:
-                print(f"Error generating card: {str(e)}")
-                continue
-
-        if not flashcards:
+            # Save to database (optional)
+            save_flashcards_to_db(user_id, attempt_id, flashcards)
+            
+            return jsonify({"flashcards": flashcards})
+            
+        except json.JSONDecodeError:
             return jsonify({
-                "status": "error",
-                "message": "Failed to generate any flashcards"
+                "error": "Failed to parse flashcards",
+                "llm_response": raw_text
             }), 500
-
-        return jsonify({
-            "status": "success",
-            "data": flashcards
-        })
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
 
     except Exception as e:
-        print(f"Server error: {str(e)}")
-        return jsonify({
-            "status": "error",
-            "message": "Internal server error"
-        }), 500
+        logging.exception("Flashcard generation failed")
+        return jsonify({"error": str(e)}), 500
+
+def save_flashcards_to_db(user_id, attempt_id, flashcards):
+    # Implement your database saving logic here
+    pass
+       
 # Helper to convert 'A', 'B' etc. to option text
 def option_letter_to_text(letter, answer_option_text):
     if not letter or not answer_option_text:
@@ -762,7 +744,7 @@ def get_answer_from_file(user_query, user_id):
         pinecone_results = index.query(
             vector=query_embedding,
             filter={"user_id": userID},
-            top_k=5,
+            tok=5,
             include_metadata=True
         )
 

@@ -21,7 +21,8 @@ import ProgressBar from "react-bootstrap/ProgressBar";
 import { useNavigate } from "react-router-dom";
 import { Modal, Button } from "react-bootstrap";
 import RadarGraph from "../components/RadarGraph";
-import FlashcardViewer from "../components/FlashcardViewer";
+import FlashcardCarousel from "../components/FlashcardCarousel";
+
 import {
   Chart as ChartJS,
   RadialLinearScale,
@@ -70,11 +71,48 @@ const StudyMetrics = () => {
   const [showGraphModal, setShowGraphModal] = useState(false);
   const [selectedFileForGraph, setSelectedFileForGraph] = useState(null);
   const [showFlashcardModal, setShowFlashcardModal] = useState(false);
-  const [flashcardTopicTitle, setFlashcardTopicTitle] = useState("");
+  // const [flashcardTopicTitle, setFlashcardTopicTitle] = useState("");
   const [selectedTopic, setSelectedTopic] = useState(null);
+  const [flashcardData, setFlashcardData] = useState([]);
 
-  const handleOpenFlashcards = (topic) => {
-    setSelectedTopic(topic);
+  const handleOpenFlashcards = async (topic) => {
+    const attemptId = topic.latestAttemptId;
+
+    if (!attemptId) {
+      alert("No recent quiz attempt found for this topic.");
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        "http://localhost:5000/api/generate_flashcards",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            attempt_id: attemptId,
+            user_id: userId,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.error || "Failed to generate flashcards.");
+        return;
+      }
+
+      // Assuming your backend returns a JSON array of flashcards
+      setSelectedTopic(topic);
+      setFlashcardData(data.flashcards || []);
+      setShowFlashcardModal(true);
+    } catch (error) {
+      console.error("Flashcard generation failed:", error);
+      alert("Failed to generate flashcards.");
+    }
   };
 
   const openGraphModal = (fileName) => {
@@ -145,6 +183,7 @@ const StudyMetrics = () => {
             latestScore: latestAttempt?.score ?? null,
             lastAttemptDate: latestAttempt?.submitted_at ?? null,
             attemptCount: topicAttempts.length,
+            latestAttemptId: latestAttempt?.attempt_id ?? null, // <<< ADD THIS LINE HERE
           };
         });
 
@@ -567,11 +606,15 @@ const StudyMetrics = () => {
 
         {/* Flashcard Viewer Modal */}
         {selectedTopic && (
-          <FlashcardViewer
+          <FlashcardCarousel
             topic={selectedTopic}
-            userId={userId}
-            show={!!selectedTopic}
-            onHide={() => setSelectedTopic(null)}
+            flashcards={flashcardData}
+            show={showFlashcardModal}
+            onHide={() => {
+              setShowFlashcardModal(false);
+              setSelectedTopic(null);
+              setFlashcardData([]);
+            }}
           />
         )}
 
