@@ -38,6 +38,7 @@ const useSession = () => {
   return {
     session,
     userId: session?.user?.id || null,
+    email: session?.user?.email || null,
     isLoggedIn: !!session,
     isSidebarOpen,
     isHistoryOpen,

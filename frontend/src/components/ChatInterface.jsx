@@ -255,9 +255,9 @@ const ChatInterface = () => {
       <div className="chat-response-section" ref={chatContainerRef} style={{ flexGrow: 1, overflowY: "auto", padding: "10px", marginBottom: "50px" }}>
         <div className="chat-header text-center mb-4">
           <RecalloVisual3D />
-          <h2 className="grad_text mt-2">
+          <h4 className="grad_text mt-2">
             Hello{user?.user_metadata?.full_name ? `, ${user.user_metadata.full_name}` : ""}! Ask Recallo
-          </h2>
+          </h4>
         </div>
 
         {messages.map((msg, index) => (

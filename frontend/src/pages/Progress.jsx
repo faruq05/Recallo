@@ -36,12 +36,94 @@ const Progress = () => {
     const fetchProgress = async () => {
       setLoading(true);
       try {
+
+        // 🔁 Trigger weak topic update first
+        await fetch("http://localhost:5000/api/update-weak-topics", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_id: userId }),
+        });
+
+        // ✅ Then fetch progress
         const response = await fetch(
           `http://localhost:5000/api/progress/${userId}`
         );
         if (response.ok) {
-          const data = await response.json();
-          setProgressData(data);
+          const { attempts, topics } = await response.json();
+
+          const topicMetaMap = {};
+          topics.forEach((t) => {
+            topicMetaMap[t.topic_id] = {
+              title: t.title,
+              fileName: t.file_name,
+            };
+          });
+
+          const topicAttemptsMap = {};
+          attempts.forEach((a) => {
+            const tId = a.topic_id;
+            topicAttemptsMap[tId] = topicAttemptsMap[tId] || [];
+            topicAttemptsMap[tId].push(a);
+          });
+
+          const transformedProgress = Object.entries(topicAttemptsMap).map(
+            ([topicId, list]) => {
+              const sorted = list.sort(
+                (a, b) => new Date(a.submitted_at) - new Date(b.submitted_at)
+              );
+              const latest = sorted[sorted.length - 1];
+              const previous =
+                sorted.length > 1 ? sorted[sorted.length - 2] : null;
+              const first = sorted[0];
+
+              const latestScore = latest.score;
+              const previousScore = previous?.score ?? null;
+              const firstScore = first.score;
+
+              const progress_percent =
+                previousScore !== null
+                  ? parseFloat(
+                      (
+                        ((latestScore - previousScore) * 100) /
+                        previousScore
+                      ).toFixed(2)
+                    )
+                  : null;
+
+              const overall_progress_percent =
+                sorted.length > 1 && firstScore !== 0
+                  ? parseFloat(
+                      (((latestScore - firstScore) * 100) / firstScore).toFixed(
+                        2
+                      )
+                    )
+                  : null;
+
+              return {
+                topic_id: topicId,
+                topic_title: topicMetaMap[topicId]?.title || `Topic ${topicId}`,
+                file_name:
+                  topicMetaMap[topicId]?.fileName || "Unknown Document",
+                latest_score: latestScore,
+                previous_score: previousScore,
+                first_score: firstScore,
+                progress_percent,
+                overall_progress_percent,
+                total_attempts: sorted.length,
+                attempt_history: sorted.map((a, i) => ({
+                  attempt_number: i + 1,
+                  score: a.score,
+                  submitted_at: a.submitted_at,
+                  improvement:
+                    i === 0
+                      ? null
+                      : +(a.score - sorted[i - 1].score).toFixed(2),
+                })),
+              };
+            }
+          );
+
+          setProgressData(transformedProgress);
         } else {
           console.error("Error fetching progress:", response.statusText);
           setProgressData([]);
@@ -62,7 +144,19 @@ const Progress = () => {
 
   const formatTimestamp = (timestamp) => {
     if (!timestamp) return "";
-    return new Date(timestamp).toLocaleString();
+
+    const [datePart, timePart] = timestamp.split("T");
+    const [year, month, day] = datePart.split("-");
+    const [hour, minute] = timePart.split(":");
+
+    let hourNum = parseInt(hour);
+    const ampm = hourNum >= 12 ? "PM" : "AM";
+    hourNum = hourNum % 12 || 12;
+
+    return `${day}/${month}/${year.slice(2)} - ${String(hourNum).padStart(
+      2,
+      "0"
+    )}:${minute} ${ampm}`;
   };
 
   const transformData = (data) => {

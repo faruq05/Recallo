@@ -11,6 +11,7 @@ const Exam = () => {
   const {
     user,
     userId,
+    email,
     isLoggedIn,
     isSidebarOpen,
     isHistoryOpen,
@@ -47,7 +48,7 @@ const Exam = () => {
       const res = await fetch("http://localhost:5000/generate-questions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic_id: topicId, difficulty_mode: "hard" }),
+        body: JSON.stringify({ topic_id: topicId, difficulty_mode: "hard", user_id: userId }),
       });
       const data = await res.json();
 
@@ -79,7 +80,7 @@ const Exam = () => {
   };
 
   // Memoized submit handler to satisfy useEffect deps and prevent re-creation
-  const handleSubmit = useCallback(
+   const handleSubmit = useCallback(
     async (isTimeUp = false) => {
       const answeredCount = answers.filter((a) => a !== null).length;
 
@@ -125,6 +126,7 @@ const Exam = () => {
         console.log("🔍 Full Submission Body:", {
           user_id: userId,
           topic_id: topicId,
+          email: email,
           submitted_answers: formattedAnswers,
         });
 
@@ -136,6 +138,7 @@ const Exam = () => {
           body: JSON.stringify({
             user_id: userId,
             topic_id: topicId,
+            email: email,
             submitted_answers: formattedAnswers,
           }),
         });
@@ -156,7 +159,7 @@ const Exam = () => {
         alert("An unexpected error occurred during submission.");
       }
     },
-    [answers, questions, navigate, userId, topicId]
+    [answers, questions, navigate, userId, topicId, email]
   );
 
   // Timer effect: countdown when exam started

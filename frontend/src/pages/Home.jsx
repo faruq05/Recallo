@@ -40,11 +40,11 @@ const Home = () => {
       </div>
 
       {/* about section */}
-      {/* <div className="container">
+      <div className="container">
         <div className="row">
-          <div className="col-md-12">
+          <div className="col-md-6">
             <div className="about_section">
-              <h2>About Recallo</h2>
+              <h2 className="grad_text">About Recallo</h2>
               <p>
                 Recallo is an intelligent, AI-powered learning companion
                 designed to revolutionize how you retain knowledge. Leveraging
@@ -56,7 +56,15 @@ const Home = () => {
                 study sessions smarter, more focused, and less stressful by
                 ensuring you review the right material at the right time.
               </p>
-              <h3>Why Recallo?</h3>
+            </div>
+          </div>
+          <div className="col-md-6"></div>
+        </div>
+        <div className="row">
+          <div className="col-md-6"></div>
+          <div className="col-md-6">
+            <div className="about_section pt-5">
+              <h2 className="grad_text">Why Recallo?</h2>
               <p>
                 Traditional learning methods often leave students overwhelmed
                 with what to study and when. Recallo bridges this gap by
@@ -69,7 +77,7 @@ const Home = () => {
             </div>
           </div>
         </div>
-      </div> */}
+      </div>
     </div>
   );
 };

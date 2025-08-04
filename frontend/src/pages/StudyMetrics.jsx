@@ -74,12 +74,17 @@ const StudyMetrics = () => {
   // const [flashcardTopicTitle, setFlashcardTopicTitle] = useState("");
   const [selectedTopic, setSelectedTopic] = useState(null);
   const [flashcardData, setFlashcardData] = useState([]);
+  const [isLoadingFlashcards, setIsLoadingFlashcards] = useState(false);
 
   const handleOpenFlashcards = async (topic) => {
+    console.log("🔄 Opening flashcard modal for topic:", topic.title);
+    setSelectedTopic(topic);
+    setFlashcardData([]);
+    setIsLoadingFlashcards(true);
+    setShowFlashcardModal(true);
     const attemptId = topic.latestAttemptId;
-
     if (!attemptId) {
-      alert("No recent quiz attempt found for this topic.");
+      setIsLoadingFlashcards(false);
       return;
     }
 
@@ -88,12 +93,11 @@ const StudyMetrics = () => {
         "http://localhost:5000/api/generate_flashcards",
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             attempt_id: attemptId,
             user_id: userId,
+            topic_id: topic.topic_id,
           }),
         }
       );
@@ -105,13 +109,13 @@ const StudyMetrics = () => {
         return;
       }
 
-      // Assuming your backend returns a JSON array of flashcards
-      setSelectedTopic(topic);
+      console.log("✅ Flashcards fetched:", data);
       setFlashcardData(data.flashcards || []);
-      setShowFlashcardModal(true);
     } catch (error) {
-      console.error("Flashcard generation failed:", error);
-      alert("Failed to generate flashcards.");
+      console.error("Flashcard fetch failed:", error);
+      alert("Flashcard fetch failed.");
+    } finally {
+      setIsLoadingFlashcards(false);
     }
   };
 
@@ -143,7 +147,21 @@ const StudyMetrics = () => {
           return;
         }
 
-        // Fetch all quiz attempts
+        // ✅ Call this only if userId exists
+        const response = await fetch("http://localhost:5000/api/update-weak-topics", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_id: userId }),
+        });
+
+        // ✅ Check the response from backend
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.error || "Failed to update weak topics.");
+        }
+
+        // ✅ Proceed with fetching metrics only if above succeeded
+
         const { data: attempts, error: attemptsError } = await supabase
           .from("quiz_attempts")
           .select("attempt_id, topic_id, score, submitted_at")
@@ -152,42 +170,32 @@ const StudyMetrics = () => {
 
         if (attemptsError) throw attemptsError;
 
-        // Fetch topics
         const { data: topics, error: topicsError } = await supabase
           .from("topics")
-          .select(
-            "topic_id, title, file_name, created_at, topic_summary, topic_status"
-          )
+          .select("topic_id, title, file_name, created_at, topic_summary, topic_status")
           .eq("user_id", userId)
           .eq("archive_status", "not_archived");
 
         if (topicsError) throw topicsError;
 
-        // Calculate quiz stats
         const quizCount = attempts.length;
         const totalScore = attempts.reduce(
-          (sum, attempt) => sum + (attempt.score || 0),
-          0
+          (sum, attempt) => sum + (attempt.score || 0), 0
         );
-        const averageScore =
-          quizCount > 0 ? (totalScore / quizCount).toFixed(1) : 0;
+        const averageScore = quizCount > 0 ? (totalScore / quizCount).toFixed(1) : 0;
 
-        // Compose topics with their latest attempts
         const topicMetrics = topics.map((topic) => {
-          const topicAttempts = attempts.filter(
-            (a) => a.topic_id === topic.topic_id
-          );
+          const topicAttempts = attempts.filter((a) => a.topic_id === topic.topic_id);
           const latestAttempt = topicAttempts[0];
           return {
             ...topic,
             latestScore: latestAttempt?.score ?? null,
             lastAttemptDate: latestAttempt?.submitted_at ?? null,
             attemptCount: topicAttempts.length,
-            latestAttemptId: latestAttempt?.attempt_id ?? null, // <<< ADD THIS LINE HERE
+            latestAttemptId: latestAttempt?.attempt_id ?? null,
           };
         });
 
-        // Group topics by file and strength
         const grouped = {};
         topicMetrics.forEach((topic) => {
           const fileName = topic.file_name || "Uncategorized";
@@ -202,14 +210,8 @@ const StudyMetrics = () => {
         setMetrics({
           quizCount,
           averageScore,
-          weakCount: Object.values(grouped).reduce(
-            (sum, file) => sum + file.weak.length,
-            0
-          ),
-          completedCount: Object.values(grouped).reduce(
-            (sum, file) => sum + file.strong.length,
-            0
-          ),
+          weakCount: Object.values(grouped).reduce((sum, file) => sum + file.weak.length, 0),
+          completedCount: Object.values(grouped).reduce((sum, file) => sum + file.strong.length, 0),
           lastActivity: attempts[0]?.submitted_at ?? null,
         });
       } catch (err) {
@@ -604,16 +606,17 @@ const StudyMetrics = () => {
           </Modal.Footer>
         </Modal>
 
-        {/* Flashcard Viewer Modal */}
-        {selectedTopic && (
+        {showFlashcardModal && selectedTopic && (
           <FlashcardCarousel
             topic={selectedTopic}
             flashcards={flashcardData}
             show={showFlashcardModal}
+            isLoading={isLoadingFlashcards}
             onHide={() => {
               setShowFlashcardModal(false);
               setSelectedTopic(null);
               setFlashcardData([]);
+              setIsLoadingFlashcards(false);
             }}
           />
         )}

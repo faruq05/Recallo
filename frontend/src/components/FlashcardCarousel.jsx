@@ -1,7 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
 import { Modal, Carousel, Button } from "react-bootstrap";
 
-const FlashcardCarousel = ({ topic, flashcards, show, onHide }) => {
+const FlashcardCarousel = ({ topic, flashcards, show, onHide, isLoading }) => {
   const [index, setIndex] = useState(0);
 
   const handleSelect = (selectedIndex) => {
@@ -22,13 +22,18 @@ const FlashcardCarousel = ({ topic, flashcards, show, onHide }) => {
           Flashcards for <span className="grad_text">{topic.title}</span>
         </Modal.Title>
       </Modal.Header>
-      <Modal.Body className="bg-dark text-white">
-        {flashcards.length === 0 ? (
+      <Modal.Body className="bg-dark text-white text-center">
+        {isLoading ? (
+          <>
+            <div className="spinner-border text-light mb-3" role="status" />
+            <p>Generating flashcards...</p>
+          </>
+        ) : flashcards.length === 0 ? (
           <p>No flashcards available for this topic.</p>
         ) : (
           <>
-            <Carousel 
-              activeIndex={index} 
+            <Carousel
+              activeIndex={index}
               onSelect={handleSelect}
               interval={null}
               indicators={true}
@@ -39,14 +44,16 @@ const FlashcardCarousel = ({ topic, flashcards, show, onHide }) => {
                   <div className="p-4 border rounded bg-secondary text-white flashcard-item">
                     <h5 className="mb-3">Core Concept</h5>
                     <p className="mb-4">{card.core_concept}</p>
-                    
+
                     <h5 className="mb-3">Key Theory</h5>
                     <p className="mb-4">{card.key_theory}</p>
-                    
+
                     {card.common_mistake && (
                       <>
                         <h5 className="mb-3 text-warning">Common Mistake</h5>
-                        <p className="mb-4 text-warning">{card.common_mistake}</p>
+                        <p className="mb-4 text-warning">
+                          {card.common_mistake}
+                        </p>
                       </>
                     )}
                   </div>
@@ -67,5 +74,6 @@ const FlashcardCarousel = ({ topic, flashcards, show, onHide }) => {
     </Modal>
   );
 };
+
 
 export default FlashcardCarousel;
