@@ -7,7 +7,7 @@ from datetime import datetime,timedelta, date
 from supabase import create_client
 import joblib
 import numpy as np
-from mailer import send_email
+from mailer import send_email_async
 
 # Initialize Supabase client (make sure these env variables are set)
 load_dotenv()
@@ -184,7 +184,18 @@ def evaluate_and_save_quiz(user_id, topic_id, submitted_answers,email_id=None):
         logging.warning(f"⚠️ Failed to update topic_status to '{new_status}' for topic {topic_id}")
         
         
-    # Fetch the topic title from the topics table
+    # Fetch user name from public.users table
+    user_res = supabase.table("users") \
+        .select("name") \
+        .eq("user_id", user_id) \
+        .maybe_single() \
+        .execute()
+
+    # Use "Learner" if name is not set
+    user_name = user_res.data.get("name") if user_res and user_res.data and user_res.data.get("name") else "Learner"
+
+        
+   # Fetch the topic title from the topics table
     topic_lookup = supabase.table("topics").select("title").eq("topic_id", topic_id).maybe_single().execute()
 
     topic_title = topic_lookup.data["title"] if topic_lookup and topic_lookup.data else "your selected topic"
@@ -201,7 +212,10 @@ def evaluate_and_save_quiz(user_id, topic_id, submitted_answers,email_id=None):
             Topic: <span style="font-weight: bold; color: #1F4E79;">{topic_title}</span>
         </h3>
 
-        <p>Hello,</p>
+        <p style="font-size: 16px; margin-bottom: 12px;">
+        Hello <span style="font-weight: 600; color: #1A237E;">{user_name}</span>,
+        </p>
+
         <p>
             Thank you for completing the quiz on 
             <span style="font-weight: bold; color: #1F4E79;">{topic_title}</span>.
@@ -224,7 +238,9 @@ def evaluate_and_save_quiz(user_id, topic_id, submitted_answers,email_id=None):
             </tr>
             <tr style="background-color: #f2f2f2;">
             <td style="padding: 8px;">Mastery Status</td>
-            <td style="padding: 8px;">{"✅ Mastered" if score > 7 else "🚧 Still Practicing"}</td>
+            <td style="padding: 8px; color: { '#2E7D32' if score > 7 else '#D84315' }; font-weight: 500;">
+            {"Mastered ✅" if score > 7 else "Needs More Practice 🚧"}
+            </td>
             </tr>
             <tr>
             <td style="padding: 8px;">Next Review Date</td>
@@ -240,18 +256,20 @@ def evaluate_and_save_quiz(user_id, topic_id, submitted_answers,email_id=None):
             "Success is the sum of small efforts, repeated day in and day out." — Robert Collier
         </blockquote>
 
-        <p>Best regards,<br>Recallo , the Learning Platform Team</p>
+        <p>Best regards,<br>Recallo Team</p>
         </div>
         """
 
-        send_email(email_id, subject, html_body)
+        send_email_async(email_id, subject, html_body)
 
 
     return {
         "score": score,
         "total_questions": total_questions,
         "correct_answers": correct_count
-    }
+    }     
+
+    
     
     
 

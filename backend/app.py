@@ -26,7 +26,7 @@ from langchain.schema import HumanMessage
 from process_pdf_for_quiz import process_pdf_for_quiz
 from QA_ANSWER import generate_and_save_mcqs
 from matching_q_a import evaluate_and_save_quiz
-from mailer import send_email, init_mail 
+from mailer import  init_mail 
 
 
 # === Load Environment Variables ===
