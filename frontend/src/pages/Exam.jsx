@@ -11,6 +11,7 @@ const Exam = () => {
   const {
     user,
     userId,
+    email,
     isLoggedIn,
     isSidebarOpen,
     isHistoryOpen,
@@ -123,6 +124,7 @@ const Exam = () => {
         console.log("🔍 Full Submission Body:", {
           user_id: userId,
           topic_id: topicId,
+          email: email,
           submitted_answers: formattedAnswers,
         });
 
@@ -134,6 +136,7 @@ const Exam = () => {
           body: JSON.stringify({
             user_id: userId,
             topic_id: topicId,
+            email: email,
             submitted_answers: formattedAnswers,
           }),
         });
@@ -154,7 +157,7 @@ const Exam = () => {
         alert("An unexpected error occurred during submission.");
       }
     },
-    [answers, questions, navigate, userId, topicId]
+    [answers, questions, navigate, userId, topicId, email]
   );
 
   // Timer effect: countdown when exam started

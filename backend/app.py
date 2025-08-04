@@ -26,6 +26,7 @@ from langchain.schema import HumanMessage
 from process_pdf_for_quiz import process_pdf_for_quiz
 from QA_ANSWER import generate_and_save_mcqs
 from matching_q_a import evaluate_and_save_quiz
+from mailer import send_email, init_mail 
 
 
 # === Load Environment Variables ===
@@ -34,6 +35,10 @@ load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://bhrwvazkvsebdxstdcow.supabase.co/")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
+GMAIL_USER = os.getenv("GMAIL_USER")
+GMAIL_PASS = os.getenv("GMAIL_APP_PASSWORD")
+
 UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx', 'txt'}
 
@@ -52,7 +57,7 @@ CORS(app, resources={
     r"/ask": {"origins": "http://localhost:5173", "methods": ["POST", "OPTIONS"]},
     r"/quiz-question": {"origins": "http://localhost:5173", "methods": ["POST", "OPTIONS"]},
     r"/generate-questions": {"origins": "http://localhost:5173", "methods": ["POST", "OPTIONS"]},
-     r"/api/generate_flashcards": {"origins": "http://localhost:5173", "methods": ["POST", "OPTIONS"]},
+    r"/api/generate_flashcards": {"origins": "http://localhost:5173", "methods": ["POST", "OPTIONS"]},
     r"/submit-answers": {"origins": "http://localhost:5173", "methods": ["POST", "OPTIONS"]},
     r"/api/progress/.*": {"origins": "http://localhost:5173", "methods": ["GET", "OPTIONS"]},
     r"/api/answer-analysis": {"origins": "http://localhost:5173", "methods": ["GET", "OPTIONS"]},
@@ -60,6 +65,20 @@ CORS(app, resources={
     r"/*": {"origins": "*"}
     
 }, supports_credentials=True)
+
+# Setup Flask-Mail
+app.config.update(
+    MAIL_SERVER='smtp.gmail.com',
+    MAIL_PORT=587,
+    MAIL_USE_TLS=True,
+    MAIL_USERNAME=GMAIL_USER,
+    MAIL_PASSWORD=GMAIL_PASS,
+    MAIL_DEFAULT_SENDER=GMAIL_USER,
+)
+
+init_mail(app)
+
+
 
 # === Initialize Supabase & Langchain Models ===
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -370,7 +389,9 @@ def submit_answers():
 
         user_id = data.get("user_id")
         topic_id = data.get("topic_id")
+        email_id = data.get("email")
         submitted_answers = data.get("submitted_answers")
+        
 
         if not user_id or not topic_id or not submitted_answers:
             return jsonify({"error": "Missing one or more required fields: user_id, topic_id, submitted_answers"}), 400
@@ -382,7 +403,7 @@ def submit_answers():
             if "question_id" not in ans or "selected_answer" not in ans:
                 return jsonify({"error": "Each answer must include 'question_id' and 'selected_answer'"}), 400
 
-        result = evaluate_and_save_quiz(user_id, topic_id, submitted_answers)
+        result = evaluate_and_save_quiz(user_id, topic_id, submitted_answers, email_id)
 
         return jsonify({"message": "Quiz submitted successfully", "result": result}), 200
 
@@ -583,7 +604,7 @@ def generate_flashcards():
             f"Q: {ex['question']}\nA: {ex['correct_answer']}\n"
             f"{'User Mistake: ' + (ex['user_answer'] or 'N/A') if ex['is_wrong'] else ''}"
             for ex in examples
-)
+        )
 
 
 
@@ -931,87 +952,32 @@ def get_explanation_from_api(user_query):
 @app.route("/api/progress/<user_id>", methods=["GET"])
 def get_user_progress(user_id):
     try:
-        # Fetch all quiz attempts for the user
-        response = supabase.table("quiz_attempts")\
-            .select("topic_id, score, submitted_at")\
-            .eq("user_id", user_id)\
-            .order("submitted_at", desc=False)\
+        # Fetch all quiz attempts
+        attempts_response = supabase.table("quiz_attempts") \
+            .select("topic_id, score, submitted_at") \
+            .eq("user_id", user_id) \
+            .order("submitted_at", desc=True) \
             .execute()
 
-        if not response.data:
+        attempts = attempts_response.data or []
+
+        if not attempts:
             return jsonify([]), 200
 
-        attempts = response.data
-
-        # Group attempts by topic_id
-        topic_attempts_map = {}
-        for attempt in attempts:
-            topic_id = attempt["topic_id"]
-            topic_attempts_map.setdefault(topic_id, []).append({
-                "score": attempt["score"],
-                "submitted_at": attempt["submitted_at"]
-            })
+        topic_ids = list({a["topic_id"] for a in attempts})
 
         # Fetch topic metadata
-        topic_ids = list(topic_attempts_map.keys())
-        topics_response = supabase.table("topics")\
-            .select("topic_id, title, file_name")\
-            .in_("topic_id", topic_ids)\
+        topics_response = supabase.table("topics") \
+            .select("topic_id, title, file_name") \
+            .in_("topic_id", topic_ids) \
             .execute()
 
-        topic_meta_map = {t["topic_id"]: t for t in topics_response.data} if topics_response.data else {}
+        topics = topics_response.data or []
 
-        # Prepare results
-        results = []
-
-        for topic_id, attempts_list in topic_attempts_map.items():
-            # Sort by submitted_at ascending (oldest first) for proper chronological order
-            sorted_attempts = sorted(attempts_list, key=lambda x: x["submitted_at"], reverse=False)
-
-            latest_score = sorted_attempts[-1]["score"]  # Last (most recent) attempt
-            previous_score = sorted_attempts[-2]["score"] if len(sorted_attempts) > 1 else None
-            first_score = sorted_attempts[0]["score"]   # First attempt
-
-
-            # Calculate different types of progress
-            progress_percent = None
-            overall_progress_percent = None
-
-            # Progress from previous attempt
-            if previous_score is not None and previous_score != 0:
-                progress_percent = round(((latest_score - previous_score) * 100.0 / previous_score), 2)
-
-            # Overall progress from first attempt
-            if len(sorted_attempts) > 1 and first_score != 0:
-                overall_progress_percent = round(((latest_score - first_score) * 100.0 / first_score), 2)
-
-            # Create history of all attempts for frontend
-            attempt_history = []
-            for i, attempt in enumerate(sorted_attempts):
-              attempt_history.append({
-                "attempt_number": i + 1,
-                "score": attempt["score"],
-                "submitted_at": attempt["submitted_at"],
-                "improvement": None if i == 0 else round(attempt["score"] - sorted_attempts[i-1]["score"], 2)
-            })
-
-
-            meta = topic_meta_map.get(topic_id, {})
-            results.append({
-                "user_id": user_id,
-                "topic_id": topic_id,
-                "topic_title": meta.get("title", f"Topic {topic_id}"),
-                "file_name": meta.get("file_name", "Unknown Document"),
-                "latest_score": latest_score,
-                "previous_score": previous_score,
-                "first_score": first_score,
-                "progress_percent": progress_percent,  # Progress from previous attempt
-                "overall_progress_percent": overall_progress_percent,  # Progress from first attempt
-                "total_attempts": len(sorted_attempts),
-                "attempt_history": attempt_history
-            })
-
-        return jsonify(results), 200
+        return jsonify({
+            "attempts": attempts,
+            "topics": topics
+        }), 200
 
     except Exception as e:
         logging.error(f"Error fetching progress: {e}")

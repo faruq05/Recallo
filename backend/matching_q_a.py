@@ -7,6 +7,7 @@ from datetime import datetime,timedelta, date
 from supabase import create_client
 import joblib
 import numpy as np
+from mailer import send_email
 
 # Initialize Supabase client (make sure these env variables are set)
 load_dotenv()
@@ -21,8 +22,7 @@ model = joblib.load("model.pkl")
 def generate_uuid():
     return str(uuid.uuid4())
 
-def evaluate_and_save_quiz(user_id, topic_id, submitted_answers):
-    import json
+def evaluate_and_save_quiz(user_id, topic_id, submitted_answers,email_id=None):
 
     # Extract question IDs
     question_ids = [ans["question_id"] for ans in submitted_answers]
@@ -182,6 +182,70 @@ def evaluate_and_save_quiz(user_id, topic_id, submitted_answers):
 
     if not status_update or not status_update.data:
         logging.warning(f"⚠️ Failed to update topic_status to '{new_status}' for topic {topic_id}")
+        
+        
+    # Fetch the topic title from the topics table
+    topic_lookup = supabase.table("topics").select("title").eq("topic_id", topic_id).maybe_single().execute()
+
+    topic_title = topic_lookup.data["title"] if topic_lookup and topic_lookup.data else "your selected topic"
+    mistake_count = total_questions - correct_count
+
+    
+    if email_id:
+        subject = f"📚 Your Quiz Results — {topic_title}"
+
+        html_body = f"""
+        <div style="font-family: Arial, sans-serif; color: #333; padding: 20px; background-color: #f9f9f9;">
+        <h2 style="color: #4CAF50;">🎉 Quiz Completed</h2>
+        <h3 style="color: #222; margin-top: 0;">
+            Topic: <span style="font-weight: bold; color: #1F4E79;">{topic_title}</span>
+        </h3>
+
+        <p>Hello,</p>
+        <p>
+            Thank you for completing the quiz on 
+            <span style="font-weight: bold; color: #1F4E79;">{topic_title}</span>.
+        </p>
+
+        <table style="border-collapse: collapse; width: 100%; margin: 20px 0;">
+            <tr style="background-color: #4CAF50; color: white;">
+            <th style="text-align: left; padding: 8px;">Metric</th>
+            <th style="text-align: left; padding: 8px;">Result</th>
+            </tr>
+            <tr style="background-color: #f2f2f2;">
+            <td style="padding: 8px;">Score</td>
+            <td style="padding: 8px;">
+                <strong style="color: #2A4C9A;">{score:.2f} / 10</strong>
+            </td>
+            </tr>
+            <tr>
+            <td style="padding: 8px;">Mistaken Answers</td>
+            <td style="padding: 8px;">{mistake_count} of {total_questions}</td>
+            </tr>
+            <tr style="background-color: #f2f2f2;">
+            <td style="padding: 8px;">Mastery Status</td>
+            <td style="padding: 8px;">{"✅ Mastered" if score > 7 else "🚧 Still Practicing"}</td>
+            </tr>
+            <tr>
+            <td style="padding: 8px;">Next Review Date</td>
+            <td style="padding: 8px;">
+            <span style="color: #1A237E; font-weight: 500;">{next_review_date}</span>
+            </td>
+            </tr>
+        </table>
+
+        <p style="margin-top: 20px;">🚀 <strong>Keep it up!</strong> Every attempt brings you closer to your goal.</p>
+
+        <blockquote style="border-left: 4px solid #4CAF50; margin: 20px 0; padding-left: 15px; color: #555;">
+            "Success is the sum of small efforts, repeated day in and day out." — Robert Collier
+        </blockquote>
+
+        <p>Best regards,<br>Recallo , the Learning Platform Team</p>
+        </div>
+        """
+
+        send_email(email_id, subject, html_body)
+
 
     return {
         "score": score,
