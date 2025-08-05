@@ -41,6 +41,7 @@ const Topics = () => {
   const [topics, setTopics] = useState([]);
   const [editingTopicId, setEditingTopicId] = useState(null);
   const [newTitle, setNewTitle] = useState("");
+  const [loadingTopics, setLoadingTopics] = useState(false);
   const [expandedSummaries, setExpandedSummaries] = useState({});
   const toggleSummary = (topicId) => {
     setExpandedSummaries((prev) => ({
@@ -49,28 +50,16 @@ const Topics = () => {
     }));
   };
 
-  // const simulateProgress = () => {
-  //   setUploading(true);
-  //   let val = 0;
-  //   const interval = setInterval(() => {
-  //     val += 5;
-  //     setProgress(val);
-  //     if (val >= 100) {
-  //       clearInterval(interval);
-  //       setUploading(false);
-  //     }
-  //   }, 150);
-  // };
-
   const fetchTopics = async () => {
+    setLoadingTopics(true);
     try {
       // 1. Trigger backend update of weak topics
       await fetch("http://localhost:5000/api/update-weak-topics", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify({ user_id: userId })
+        body: JSON.stringify({ user_id: userId }),
       });
 
       // 2. Now fetch topics from Supabase
@@ -89,46 +78,10 @@ const Topics = () => {
       setTopics(data || []);
     } catch (err) {
       console.error("Error updating and fetching topics:", err);
+    } finally {
+      setLoadingTopics(false); // 👉 Done loading
     }
   };
-
-  // const handleFileSelect = async (file) => {
-  //   if (!userId) {
-  //     alert("You must be logged in to upload a file.");
-  //     return;
-  //   }
-
-  //   const formData = new FormData();
-  //   formData.append("file", file);
-  //   formData.append("user_id", userId);
-
-  //   setUploadedFiles((prev) => [...prev, { file, done: false }]);
-  //   setProgress(0);
-  //   simulateProgress();
-
-  //   try {
-  //     const response = await fetch("http://localhost:5000/quiz-question", {
-  //       method: "POST",
-  //       body: formData,
-  //     });
-
-  //     const result = await response.json();
-  //     if (response.ok) {
-  //       alert(
-  //         result.message ||
-  //           "File processed successfully. Topics saved to Supabase."
-  //       );
-  //       fetchTopics();
-  //     } else {
-  //       alert(result.message || result.error || "Something went wrong.");
-  //     }
-  //   } catch (error) {
-  //     console.error("Error uploading:", error);
-  //     alert("Failed to upload and process file.");
-  //   } finally {
-  //     setUploading(false);
-  //   }
-  // };
 
   const handleFileSelect = async (file) => {
     if (!userId) {
@@ -344,7 +297,14 @@ const Topics = () => {
 
         {/* Topics Section */}
         <div className="container">
-          {topics.length > 0 ? (
+          {loadingTopics ? (
+            <div className="text-center my-5">
+              <div className="spinner-border text-light" role="status">
+                <span className="visually-hidden">Loading topics...</span>
+              </div>
+              <p className="mt-3">Loading topics...</p>
+            </div>
+          ) : topics.length > 0 ? (
             Object.entries(
               topics.reduce((acc, topic) => {
                 if (!acc[topic.file_name]) acc[topic.file_name] = [];

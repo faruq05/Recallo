@@ -148,11 +148,14 @@ const StudyMetrics = () => {
         }
 
         // ✅ Call this only if userId exists
-        const response = await fetch("http://localhost:5000/api/update-weak-topics", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_id: userId }),
-        });
+        const response = await fetch(
+          "http://localhost:5000/api/update-weak-topics",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ user_id: userId }),
+          }
+        );
 
         // ✅ Check the response from backend
         if (!response.ok) {
@@ -172,20 +175,38 @@ const StudyMetrics = () => {
 
         const { data: topics, error: topicsError } = await supabase
           .from("topics")
-          .select("topic_id, title, file_name, created_at, topic_summary, topic_status")
+          .select(
+            "topic_id, title, file_name, created_at, topic_summary, topic_status"
+          )
           .eq("user_id", userId)
           .eq("archive_status", "not_archived");
+
+        const { data: reviewData, error: reviewError } = await supabase
+          .from("user_topic_review_features")
+          .select("topic_id, next_review_date")
+          .eq("user_id", userId);
+
+        if (reviewError) throw reviewError;
+
+        const reviewMap = {};
+        reviewData.forEach((row) => {
+          reviewMap[row.topic_id] = row.next_review_date;
+        });
 
         if (topicsError) throw topicsError;
 
         const quizCount = attempts.length;
         const totalScore = attempts.reduce(
-          (sum, attempt) => sum + (attempt.score || 0), 0
+          (sum, attempt) => sum + (attempt.score || 0),
+          0
         );
-        const averageScore = quizCount > 0 ? (totalScore / quizCount).toFixed(1) : 0;
+        const averageScore =
+          quizCount > 0 ? (totalScore / quizCount).toFixed(1) : 0;
 
         const topicMetrics = topics.map((topic) => {
-          const topicAttempts = attempts.filter((a) => a.topic_id === topic.topic_id);
+          const topicAttempts = attempts.filter(
+            (a) => a.topic_id === topic.topic_id
+          );
           const latestAttempt = topicAttempts[0];
           return {
             ...topic,
@@ -193,6 +214,7 @@ const StudyMetrics = () => {
             lastAttemptDate: latestAttempt?.submitted_at ?? null,
             attemptCount: topicAttempts.length,
             latestAttemptId: latestAttempt?.attempt_id ?? null,
+            nextReviewDate: reviewMap[topic.topic_id] || null,
           };
         });
 
@@ -210,8 +232,14 @@ const StudyMetrics = () => {
         setMetrics({
           quizCount,
           averageScore,
-          weakCount: Object.values(grouped).reduce((sum, file) => sum + file.weak.length, 0),
-          completedCount: Object.values(grouped).reduce((sum, file) => sum + file.strong.length, 0),
+          weakCount: Object.values(grouped).reduce(
+            (sum, file) => sum + file.weak.length,
+            0
+          ),
+          completedCount: Object.values(grouped).reduce(
+            (sum, file) => sum + file.strong.length,
+            0
+          ),
           lastActivity: attempts[0]?.submitted_at ?? null,
         });
       } catch (err) {
@@ -404,6 +432,16 @@ const StudyMetrics = () => {
               </button>
             )}
           </div>
+
+          {topic.nextReviewDate && (
+            <p className="mt-4 mb-0 text-white small">
+              <Clock size={14} className="me-1" />
+              Next Review:{" "}
+              <span className="fw-bold">
+                {new Date(topic.nextReviewDate).toLocaleDateString("en-GB")}
+              </span>
+            </p>
+          )}
         </div>
       </div>
     </div>

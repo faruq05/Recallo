@@ -1,6 +1,7 @@
 import React from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Home from "./pages/Home";
+import Features from "./pages/Features"
 import Dashboard from "./pages/Dashboard";
 import Chat from "./pages/Chat";
 import Signin from "./pages/Signin";
@@ -13,13 +14,14 @@ import Progress from "./pages/Progress";
 import Archive from "./pages/Archive";
 import Study_Metrics from "./pages/StudyMetrics";
 import Settings from "./pages/Settings";
-import Resource from "./pages/Resource";
-
+import Developers from "./pages/Developers";
 function App() {
   return (
     <Router>
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/features" element={<Features />} />
+        <Route path="/developers" element={<Developers />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/chat" element={<Chat />} />
         <Route path="/signin" element={<Signin />} />
@@ -31,7 +33,7 @@ function App() {
         <Route path="/archive" element={<Archive />} />
         <Route path="/studymetrics" element={<Study_Metrics />} />
         <Route path="/settings" element={<Settings />} />
-        <Route path="/resource" element={<Resource />} />
+        
       </Routes>
     </Router>
   );

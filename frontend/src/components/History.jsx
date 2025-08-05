@@ -3,7 +3,7 @@ import { Power, Plus, Search, Pencil, Trash2, Share2 } from "lucide-react";
 
 const History = ({
   isLoggedIn,
-  isHistoryOpen,
+  isHistoryOpen = false,
   onClose,
   userId,
   onSelectConversation,
@@ -11,23 +11,30 @@ const History = ({
   conversations: initialConversations, // renamed to avoid conflict with state
   currentConv,
   setCurrentConv,
-  setMessages
+  setMessages,
 }) => {
-  const [conversations, setConversations] = useState(initialConversations || []);
+  const [conversations, setConversations] = useState(
+    initialConversations || []
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState("");
+  const [loading, setLoading] = useState(false);
 
   // Fetch all conversations
   useEffect(() => {
     if (isHistoryOpen && isLoggedIn && userId) {
+      setLoading(true);
       fetch(`http://127.0.0.1:5000/api/conversations?user_id=${userId}`)
-        .then((res) => res.ok ? res.json() : Promise.reject("Failed to fetch"))
+        .then((res) =>
+          res.ok ? res.json() : Promise.reject("Failed to fetch")
+        )
         .then(setConversations)
         .catch((err) => {
           console.error("Error fetching conversations:", err);
           setConversations([]);
-        });
+        })
+        .finally(() => setLoading(false));
     }
   }, [isHistoryOpen, isLoggedIn, userId]);
 
@@ -44,7 +51,7 @@ const History = ({
           conversation_id: newId,
           title: "New Chat",
           created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         };
         setConversations([newConversation, ...conversations]);
       }
@@ -61,7 +68,7 @@ const History = ({
       });
 
       // 2) remove from local list
-      setConversations(cs => cs.filter(c => c.conversation_id !== convId));
+      setConversations((cs) => cs.filter((c) => c.conversation_id !== convId));
 
       // 3) if it was the open chat, start a new one
       if (convId === currentConv) {
@@ -81,11 +88,13 @@ const History = ({
       await fetch(`http://127.0.0.1:5000/api/conversations/${conversationId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: newTitle })
+        body: JSON.stringify({ title: newTitle }),
       });
-      setConversations(conversations.map(c =>
-        c.conversation_id === conversationId ? { ...c, title: newTitle } : c
-      ));
+      setConversations(
+        conversations.map((c) =>
+          c.conversation_id === conversationId ? { ...c, title: newTitle } : c
+        )
+      );
     } catch (error) {
       console.error("Error renaming conversation:", error);
     }
@@ -93,13 +102,20 @@ const History = ({
 
   const handleShare = (conversationId) => {
     const shareUrl = `${window.location.origin}/chat/${conversationId}`;
-    navigator.clipboard.writeText(shareUrl)
+    navigator.clipboard
+      .writeText(shareUrl)
       .then(() => alert("Link copied to clipboard!"))
-      .catch(err => console.error("Failed to copy:", err));
+      .catch((err) => console.error("Failed to copy:", err));
   };
 
+  
+
   return (
-    <div className={`history-panel bg-dark text-white p-3 ${isHistoryOpen ? "open" : ""}`}>
+    <div
+      className={`history-panel bg-dark text-white p-3 ${
+         isHistoryOpen ? "open" : "closed"
+      }`}
+    >
       <div className="d-flex justify-content-between align-items-center mb-3">
         <h5 className="m-0">Chat History</h5>
         <Power onClick={onClose} style={{ cursor: "pointer" }} />
@@ -108,7 +124,7 @@ const History = ({
       {isLoggedIn ? (
         <>
           <button
-            className="btn btn-outline-light btn-sm mb-2 w-100 d-flex align-items-center justify-content-center gap-2"
+            className="btn btn-sm btn-answer mb-2 w-100 d-flex align-items-center justify-content-center gap-2"
             onClick={handleNew}
           >
             <Plus size={16} /> New Chat
@@ -131,12 +147,19 @@ const History = ({
           </div>
 
           <ul className="list-group list-group-flush chat-list">
-            {filtered.length > 0 ? (
-              filtered.map((c) => (
-                <li
-                  key={c.conversation_id}
-                  className="list-group-item bg-dark text-white border-secondary rounded my-1"
+            {loading ? (
+              <li className="list-group-item bg-dark text-white-50 border-0 text-center">
+                <div
+                  className="spinner-border text-light"
+                  role="status"
+                  style={{ width: "1.5rem", height: "1.5rem" }}
                 >
+                  <span className="visually-hidden">Loading...</span>
+                </div>
+              </li>
+            ) : filtered.length > 0 ? (
+              filtered.map((c) => (
+                <li key={c.conversation_id} className="history_list">
                   <div className="d-flex justify-content-between align-items-center">
                     <div
                       className="flex-grow-1"
@@ -177,18 +200,17 @@ const History = ({
                           setEditTitle(c.title || "");
                         }}
                       />
-                          <Trash2
-                          size={16}
-                          style={{ cursor: "pointer" }}
-                          title="Delete"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (window.confirm("Delete this conversation?")) {
-                              handleDeleteAndStartNewChat(c.conversation_id); // ✅ use local state-updating function
-                            }
-                          }}
-                        />
-
+                      <Trash2
+                        size={16}
+                        style={{ cursor: "pointer" }}
+                        title="Delete"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (window.confirm("Delete this conversation?")) {
+                            handleDeleteAndStartNewChat(c.conversation_id);
+                          }
+                        }}
+                      />
                       <Share2
                         size={16}
                         style={{ cursor: "pointer" }}
@@ -211,7 +233,9 @@ const History = ({
         </>
       ) : (
         <div className="text-white-50 mt-4">
-          <p>Please <strong>sign in</strong> to access your chat history.</p>
+          <p>
+            Please <strong>sign in</strong> to access your chat history.
+          </p>
         </div>
       )}
     </div>

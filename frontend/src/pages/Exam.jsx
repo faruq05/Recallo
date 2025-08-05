@@ -22,7 +22,6 @@ const Exam = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Extract data passed via react-router navigate: topicTitle, fileName, topicId
   const {
     topicTitle = "Sample Topic",
     fileName = "SampleFile.pdf",
@@ -36,6 +35,7 @@ const Exam = () => {
   const [timeLeft, setTimeLeft] = useState(600); // 10 minutes in seconds
   const [questions, setQuestions] = useState([]); // Holds fetched questions
   const [answers, setAnswers] = useState([]); // User answers for each question
+  const [submitting, setSubmitting] = useState(false);
 
   // Function to fetch questions from backend on "Start Exam"
   const startExam = async () => {
@@ -48,7 +48,11 @@ const Exam = () => {
       const res = await fetch("http://localhost:5000/generate-questions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic_id: topicId, difficulty_mode: "hard", user_id: userId }),
+        body: JSON.stringify({
+          topic_id: topicId,
+          difficulty_mode: "hard",
+          user_id: userId,
+        }),
       });
       const data = await res.json();
 
@@ -80,7 +84,7 @@ const Exam = () => {
   };
 
   // Memoized submit handler to satisfy useEffect deps and prevent re-creation
-   const handleSubmit = useCallback(
+  const handleSubmit = useCallback(
     async (isTimeUp = false) => {
       const answeredCount = answers.filter((a) => a !== null).length;
 
@@ -96,6 +100,8 @@ const Exam = () => {
           `Exam complete. You answered ${answeredCount}/${questions.length} questions. Redirecting to progress page.`
         );
       }
+
+      setSubmitting(true);
 
       try {
         const formattedAnswers = questions.map((q, index) => {
@@ -157,6 +163,8 @@ const Exam = () => {
       } catch (error) {
         console.error("💥 Error submitting exam:", error);
         alert("An unexpected error occurred during submission.");
+      } finally {
+        setSubmitting(false);
       }
     },
     [answers, questions, navigate, userId, topicId, email]
@@ -221,6 +229,14 @@ const Exam = () => {
   }
   return (
     <div className="chat chat-wrapper chat_scroll d-flex min-vh-100">
+      {submitting && (
+        <div className="exam-loader-overlay">
+          <div className="spinner-border text-light" role="status">
+            <span className="visually-hidden">Submitting...</span>
+          </div>
+          <p className="mt-3">Submitting Exam...</p>
+        </div>
+      )}
       {/* Sidebar and History */}
       <div className={`sidebar-area ${isSidebarOpen ? "open" : "collapsed"}`}>
         <Sidebar
@@ -277,6 +293,7 @@ const Exam = () => {
                     onClick={startExam}
                     disabled={loadingQuestions}
                   >
+                    {loadingQuestions && <span className="spinner" />}
                     {loadingQuestions ? "Loading Questions..." : "Start Exam"}
                   </button>
                 </div>

@@ -7,7 +7,8 @@ from datetime import datetime,timedelta, date
 from supabase import create_client
 import joblib
 import numpy as np
-from mailer import send_email
+from mailer import send_email_async
+import pandas as pd
 
 # Initialize Supabase client (make sure these env variables are set)
 load_dotenv()
@@ -22,8 +23,7 @@ model = joblib.load("model.pkl")
 def generate_uuid():
     return str(uuid.uuid4())
 
-def evaluate_and_save_quiz(user_id, topic_id, submitted_answers, email_id=None):
-    import json
+def evaluate_and_save_quiz(user_id, topic_id, submitted_answers,email_id=None):
 
     # Extract question IDs
     question_ids = [ans["question_id"] for ans in submitted_answers]
@@ -149,18 +149,27 @@ def evaluate_and_save_quiz(user_id, topic_id, submitted_answers, email_id=None):
     # --- 🔮 MODEL PREDICTION FOR NEXT REVIEW DATE ---
     # Fetch features from user_topic_review_features after trigger updates stats
     review_data = supabase.table("user_topic_review_features") \
-    .select("latest_score, avg_score, attempts_count, days_since_last_attempt") \
+    .select("latest_score, avg_score, attempts_count, last_attempt") \
     .eq("user_id", user_id) \
     .eq("topic_id", topic_id) \
     .maybe_single() \
     .execute()
 
+
     if review_data.data:
         latest_score = review_data.data.get("latest_score", score)
         avg_score = review_data.data.get("avg_score", score)
         attempts_count = review_data.data.get("attempts_count", 1)
-        days_since_last_attempt = review_data.data.get("days_since_last_attempt", 0)
 
+        # Parse last_attempt_date and compute days since
+        last_attempt_date_str = review_data.data.get("last_attempt_date")
+        if last_attempt_date_str:
+            last_attempt_date = datetime.strptime(last_attempt_date_str, "%Y-%m-%d").date()
+            days_since_last_attempt = (date.today() - last_attempt_date).days
+        else:
+            days_since_last_attempt = 0  # default if not found
+
+        # Now proceed with model input
         X = np.array([[latest_score, avg_score, attempts_count, days_since_last_attempt]])
 
         predicted_days = int(round(model.predict(X)[0]))
@@ -184,7 +193,22 @@ def evaluate_and_save_quiz(user_id, topic_id, submitted_answers, email_id=None):
     if not status_update or not status_update.data:
         logging.warning(f"⚠️ Failed to update topic_status to '{new_status}' for topic {topic_id}")
         
-     # Fetch the topic title from the topics table
+        
+    localized_date_str = next_review_date.strftime("%d %B %Y")
+            
+        
+    # Fetch user name from public.users table
+    user_res = supabase.table("users") \
+        .select("name") \
+        .eq("user_id", user_id) \
+        .maybe_single() \
+        .execute()
+
+    # Use "Learner" if name is not set
+    user_name = user_res.data.get("name") if user_res and user_res.data and user_res.data.get("name") else "Learner"
+
+        
+   # Fetch the topic title from the topics table
     topic_lookup = supabase.table("topics").select("title").eq("topic_id", topic_id).maybe_single().execute()
 
     topic_title = topic_lookup.data["title"] if topic_lookup and topic_lookup.data else "your selected topic"
@@ -201,14 +225,17 @@ def evaluate_and_save_quiz(user_id, topic_id, submitted_answers, email_id=None):
             Topic: <span style="font-weight: bold; color: #1F4E79;">{topic_title}</span>
         </h3>
 
-        <p>Hello,</p>
+        <p style="font-size: 16px; margin-bottom: 12px;">
+        Hello <span style="font-weight: 600; color: #1A237E;">{user_name}</span>,
+        </p>
+
         <p>
             Thank you for completing the quiz on 
             <span style="font-weight: bold; color: #1F4E79;">{topic_title}</span>.
         </p>
 
         <table style="border-collapse: collapse; width: 100%; margin: 20px 0;">
-            <tr style="background-color: #4CAF50; color: white;">
+            <tr style="background-color: #e49c00; color: white;">
             <th style="text-align: left; padding: 8px;">Metric</th>
             <th style="text-align: left; padding: 8px;">Result</th>
             </tr>
@@ -224,15 +251,24 @@ def evaluate_and_save_quiz(user_id, topic_id, submitted_answers, email_id=None):
             </tr>
             <tr style="background-color: #f2f2f2;">
             <td style="padding: 8px;">Mastery Status</td>
-            <td style="padding: 8px;">{"✅ Mastered" if score > 7 else "🚧 Still Practicing"}</td>
+            <td style="padding: 8px; color: { '#2E7D32' if score > 7 else '#D84315' }; font-weight: 500;">
+            {"Mastered ✅" if score > 7 else "Needs More Practice 🚧"}
+            </td>
             </tr>
             <tr>
             <td style="padding: 8px;">Next Review Date</td>
             <td style="padding: 8px;">
-            <span style="color: #1A237E; font-weight: 500;">{next_review_date}</span>
+            <span style="color: #1A237E; font-weight: 500;">{localized_date_str}</span>
             </td>
             </tr>
         </table>
+        
+        <p style="margin-top: 20px;">
+            🧠 <strong>Model Insight:</strong><br>
+            Our smart learning system recommends revisiting this topic in 
+            <strong style="color: #1A237E;">{predicted_days} day{'s' if predicted_days != 1 else ''}</strong> 
+            to strengthen retention and ensure mastery.
+        </p>
 
         <p style="margin-top: 20px;">🚀 <strong>Keep it up!</strong> Every attempt brings you closer to your goal.</p>
 
@@ -240,17 +276,20 @@ def evaluate_and_save_quiz(user_id, topic_id, submitted_answers, email_id=None):
             "Success is the sum of small efforts, repeated day in and day out." — Robert Collier
         </blockquote>
 
-        <p>Best regards,<br>Recallo , the Learning Platform Team</p>
+        <p>Best regards,<br>Recallo Team</p>
         </div>
         """
 
-        send_email(email_id, subject, html_body)
+        send_email_async(email_id, subject, html_body)
+
 
     return {
         "score": score,
         "total_questions": total_questions,
         "correct_answers": correct_count
-    }
+    }     
+
+    
     
     
 

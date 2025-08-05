@@ -212,15 +212,7 @@ const Settings = () => {
               )}
             </div>
 
-            <div className="mt-5 text-white">
-              <h5>ℹ️ How it works</h5>
-              <ul>
-                <li><strong>Email Notifications:</strong> You'll receive an email after every quiz attempt with your score</li>
-                <li><strong>Daily Reminders:</strong> If you score below 8/10, you'll get daily reminders until you improve</li>
-                <li><strong>Topic Settings:</strong> Disable notifications for specific topics you don't want reminders about</li>
-                <li><strong>Weekly Practice:</strong> Topics with scores 8+ get weekly practice reminders</li>
-              </ul>
-            </div>
+            
           </div>
         )}
       </div>

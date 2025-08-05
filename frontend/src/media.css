@@ -39,6 +39,10 @@
   gap: 10px;
 }
 
+.rbc3{
+  width: 100%;
+}
+
 }
 
 @media(max-width:767px) {
@@ -65,8 +69,27 @@
     position: relative;
   }
 
-  
+  .banner .row{
+    height: 100vh!important;
+  }
 
+
+
+  .hero .row {
+    height: 70vh;}
+  
+    h1{
+      font-size: 60px!important;
+    }
+      h2{
+      font-size: 38px!important;
+    }
+      h3{
+      font-size: 20px!important;
+    }
+      h4{
+      font-size: 25px!important;
+    }
 }
 
 
@@ -89,6 +112,10 @@
   .btn-otl{
     font-size: 12px;
   }
+
+   h1{
+      font-size: 50px!important;
+    }
 }
 
 
