@@ -24,7 +24,6 @@ def normalize_title(title):
 def is_similar(a, b, threshold=0.8):
     return SequenceMatcher(None, a, b).ratio() > threshold
 
-
 def process_pdf_for_quiz(file_path, gemini_api_key, user_id, supabase, file_hash):
     try:
         file_name_full = os.path.basename(file_path)

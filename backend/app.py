@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, session
+from flask import Flask, request, jsonify, session,abort
 from flask_cors import CORS, cross_origin
 from flask import make_response
 import json
@@ -27,6 +27,7 @@ from process_pdf_for_quiz import process_pdf_for_quiz
 from QA_ANSWER import generate_and_save_mcqs
 from matching_q_a import evaluate_and_save_quiz
 from mailer import  init_mail 
+
 
 
 # === Load Environment Variables ===
@@ -123,9 +124,19 @@ def insert_chat_log_supabase_with_conversation(user_id, conv_id, user_msg, resp_
         logging.error(f"Supabase insert error: {e}")
 
 # === Endpoints ===
-@app.route('/chat', methods=['POST'])
+@app.route('/chat', methods=['POST','OPTIONS'])
 def chat():
+    
+    if request.method == "OPTIONS":
+            response = jsonify({})
+            response.headers.add("Access-Control-Allow-Origin", "*")
+            response.headers.add("Access-Control-Allow-Headers", "Content-Type")
+            response.headers.add("Access-Control-Allow-Methods", "POST, OPTIONS")
+            return response   
     try:
+        if not request.json:
+            logging.error("No JSON data received in chat request")
+            return jsonify({"error": "No JSON data provided"}), 400
         user_message = request.json.get("message", "")
         user_id = request.json.get("user_id")
         conv_id = request.json.get("conversation_id")
@@ -134,20 +145,10 @@ def chat():
             return jsonify({"error": "No message provided"}), 400
         if not user_id:
             return jsonify({"error": "No user ID provided"}), 400
-
+        
         logging.info(f"Received message: {user_message}")
-
-        # ✅ Step 1: Ensure user exists in 'users' table
-        user_check = supabase.table("users").select("user_id").eq("user_id", user_id).execute()
-        if not user_check.data:
-            logging.warning(f"User {user_id} not found, inserting new user...")
-            supabase.table("users").insert({
-                "user_id": user_id,
-                "created_at": datetime.now().isoformat(),
-                "name": "Guest"
-            }).execute()
-
-        # ✅ Step 2: Handle conversation ID safely
+        
+        # Step 1: Handle conversation ID safely
         if not conv_id:
             conv_id = str(uuid.uuid4())
             supabase.table("conversations").insert({
@@ -157,7 +158,7 @@ def chat():
                 "title": "New Chat"
             }).execute()
 
-        # ✅ Step 3: Run AI model
+        # Enhanced educational and conversational prompt
         prompt = f"""
         You are an AI assistant with a deep knowledge base designed to help users learn and understand any topic in the most effective and engaging way. Your role is to provide clear, accurate, and detailed explanations, making complex topics easy to understand. 
 
@@ -167,13 +168,15 @@ def chat():
 
         User message: {user_message}
         """
-
+        
+        
+        # Run the conversation chain with memory
         ai_reply = conversation.predict(input=user_message)
-
-        # ✅ Step 4: Log chat to Supabase
+        
+        # Step 3: Insert log
         insert_chat_log_supabase_with_conversation(user_id, conv_id, user_message, ai_reply)
 
-        # ✅ Step 5: Generate smart title if it's the first message
+        # Step 4: If this is the first message, generate smart title
         log_check = supabase.table("chat_logs").select("id").eq("conversation_id", conv_id).execute()
         if log_check.data and len(log_check.data) == 1:
             smart_title = generate_title(user_message, ai_reply)
@@ -181,10 +184,12 @@ def chat():
                 "title": smart_title
             }).eq("conversation_id", conv_id).execute()
 
+
         return jsonify({
             "response": ai_reply,
             "conversation_id": conv_id
         }), 200
+
 
     except Exception as e:
         logging.error(f"/chat error: {e}")
@@ -1094,12 +1099,19 @@ def get_user_progress(user_id):
     
     
 # --- Conversation Management ---
-@app.route("/api/conversations", methods=["GET", "POST"])
+@app.route("/api/conversations", methods=["GET", "POST","OPTIONS"])
 def conversations():
+    if request.method == "OPTIONS":
+        response = jsonify({})
+        response.headers.add("Access-Control-Allow-Origin", "*")
+        response.headers.add("Access-Control-Allow-Headers", "Content-Type")
+        response.headers.add("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        return response
     if request.method == "GET":
+        # List all conversations for a user
         user_id = request.args.get("user_id")
         if not user_id:
-            return jsonify({"error": "Missing user_id"}), 400
+            abort(400, "Missing user_id")
 
         try:
             response = supabase.table("conversations").select(
@@ -1108,27 +1120,50 @@ def conversations():
             return jsonify(response.data), 200
         except Exception as e:
             logging.error(f"Error fetching conversations: {e}")
-            return jsonify({"error": "Failed to fetch conversations"}), 500
+            abort(500, "Failed to fetch conversations")
 
     elif request.method == "POST":
-        data = request.get_json()
-        user_id = data.get("user_id")
-        title = data.get("title", "New Chat")
-        if not user_id:
-            return jsonify({"error": "Missing user_id"}), 400
+        # Create a new conversation
+        try:
+            data = request.get_json()
+            if not data:
+                logging.error("No JSON data received in POST request")
+                abort(400, "No JSON data provided")
 
-        conv_id = str(uuid.uuid4())
+            user_id = data.get("user_id")
+            user_message = data.get("user_message", "")
+            llm_response = data.get("llm_response", "")
+
+            logging.info(f"Creating conversation for user_id: {user_id}")
+
+            if not user_id:
+                logging.error("Missing user_id in request data")
+                abort(400, "Missing user_id")
+        except Exception as e:
+            logging.error(f"Error parsing request data: {e}")
+            abort(400, "Invalid request data")
+
+        # Generate conversation title using LLM
+        title = generate_title(user_message, llm_response)
+
+        # Generate unique conversation_id
+        new_conv_id = str(uuid.uuid4())
+
         try:
             response = supabase.table("conversations").insert({
-                "conversation_id": conv_id,
+                "conversation_id": new_conv_id,
                 "user_id": user_id,
-                "created_at": datetime.now().isoformat(),
                 "title": title
             }).execute()
-            return jsonify(response.data[0]), 201
+
+            if response.data:
+                return jsonify(response.data[0]), 201
+            else:
+                abort(500, "Failed to create conversation")
         except Exception as e:
             logging.error(f"Error creating conversation: {e}")
-            return jsonify({"error": "Failed to create conversation"}), 500
+            abort(500, "Failed to create conversation")
+
 
 
 @app.route("/api/conversations/<conversation_id>", methods=["PUT", "DELETE"])

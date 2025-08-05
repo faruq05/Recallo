@@ -168,9 +168,19 @@ def evaluate_and_save_quiz(user_id, topic_id, submitted_answers,email_id=None):
             days_since_last_attempt = (date.today() - last_attempt_date).days
         else:
             days_since_last_attempt = 0  # default if not found
+            
+        
+        print("📦 Debugging Model Input Features:")
+        print(f"Latest Score: {latest_score} (type: {type(latest_score)})")
+        print(f"Avg Score: {avg_score} (type: {type(avg_score)})")
+        print(f"Attempts Count: {attempts_count} (type: {type(attempts_count)})")
+        print(f"Days Since Last Attempt: {days_since_last_attempt} (type: {type(days_since_last_attempt)})")
 
-        # Now proceed with model input
         X = np.array([[latest_score, avg_score, attempts_count, days_since_last_attempt]])
+        print("🧮 Final model input array X:", X)
+
+        # # Now proceed with model input
+        # X = np.array([[latest_score, avg_score, attempts_count, days_since_last_attempt]])
 
         predicted_days = int(round(model.predict(X)[0]))
         next_review_date = date.today() + timedelta(days=predicted_days)
