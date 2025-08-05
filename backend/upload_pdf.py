@@ -7,6 +7,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain.schema import Document
 from config import PINECONE_API_KEY  # Ensure your API key is loaded correctly
+from datetime import datetime
 
 import pinecone
 print("pinecone module location:", pinecone.__file__)
@@ -102,6 +103,7 @@ def process_pdf(file_path, supabase, gemini_api_key, user_id,file_hash):
                 "filename": file_name,  # Insert filename directly
                 "file_uuid": file_uuid,  # Store the unique file UUID with each chunk
                 "user_id": user_id,  # Store the user ID with each chunk
+                "uploaded_at": datetime.now().isoformat(),
                 "hash_file": file_hash
             }
             for i, (doc, embedding) in enumerate(zip(docs, embeddings))  # Loop over docs and embeddings

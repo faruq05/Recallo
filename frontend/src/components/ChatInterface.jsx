@@ -168,15 +168,29 @@ const ChatInterface = () => {
 
       const data = await response.json();
 
-      if (data.conversation_id && !currentConv) {
+      if (data.conversation_id) {
+        const wasNew = !currentConv;
         setCurrentConv(data.conversation_id);
-        setConversations(prev => [{
-          conversation_id: data.conversation_id,
-          title: "New Chat",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }, ...prev]);
+
+        if (wasNew) {
+          // Add placeholder conversation immediately
+          setConversations(prev => [{
+            conversation_id: data.conversation_id,
+            title: "New Chat",
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }, ...prev]);
+
+          // Fetch fresh conversations from backend after a delay
+          setTimeout(() => {
+            fetch(`http://127.0.0.1:5000/api/conversations?user_id=${userId}`)
+              .then(res => res.ok ? res.json() : Promise.reject("Failed to fetch"))
+              .then(fresh => setConversations(fresh))
+              .catch(console.error);
+          }, 1500); // gives time for backend to generate smart title
+        }
       }
+
 
       const aiReply = {
         id: Date.now() + 1,

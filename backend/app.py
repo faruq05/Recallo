@@ -98,15 +98,27 @@ recent_file_uid = None
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def insert_chat_log(user_message, response_message, user_id=None):
+# --- Supabase Insert Helper ---
+def insert_chat_log_supabase_with_conversation(user_id, conv_id, user_msg, resp_msg):
+    """Insert chat log with conversation tracking"""
     try:
+        message_id = str(uuid.uuid4())
         data = {
-            "user_message": user_message,
-            "response_message": response_message,
-            "user_id": user_id
+            "user_id": user_id,
+            "conversation_id": conv_id,
+            "user_message": user_msg,
+            "response_message": resp_msg,
+            "created_at": datetime.now().isoformat(),
+            "message_id": message_id
         }
-        response = supabase.table("chat_logs").insert(data).execute()
-        logging.info("Inserted chat log into Supabase.")
+        supabase.table("chat_logs").insert(data).execute()
+
+        # Update conversation timestamp
+        supabase.table("conversations").update({
+            "updated_at": datetime.now().isoformat()
+        }).eq("conversation_id", conv_id).execute()
+
+        logging.info(f"Inserted chat log into Supabase for conversation {conv_id}")
     except Exception as e:
         logging.error(f"Supabase insert error: {e}")
 
@@ -116,11 +128,24 @@ def chat():
     try:
         user_message = request.json.get("message", "")
         user_id = request.json.get("user_id")
+        conv_id = request.json.get("conversation_id")
 
         if not user_message:
             return jsonify({"error": "No message provided"}), 400
-
+        if not user_id:
+            return jsonify({"error": "No user ID provided"}), 400
+        
         logging.info(f"Received message: {user_message}")
+        
+        # Step 1: Handle conversation ID safely
+        if not conv_id:
+            conv_id = str(uuid.uuid4())
+            supabase.table("conversations").insert({
+                "conversation_id": conv_id,
+                "user_id": user_id,
+                "created_at": datetime.now().isoformat(),
+                "title": "New Chat"
+            }).execute()
 
         # Enhanced educational and conversational prompt
         prompt = f"""
@@ -132,14 +157,28 @@ def chat():
 
         User message: {user_message}
         """
-
+        
+        
         # Run the conversation chain with memory
         ai_reply = conversation.predict(input=user_message)
+        
+        # Step 3: Insert log
+        insert_chat_log_supabase_with_conversation(user_id, conv_id, user_message, ai_reply)
 
-        # Save to Supabase AFTER memory processes it
-        insert_chat_log(user_message, ai_reply, user_id)
+        # Step 4: If this is the first message, generate smart title
+        log_check = supabase.table("chat_logs").select("id").eq("conversation_id", conv_id).execute()
+        if log_check.data and len(log_check.data) == 1:
+            smart_title = generate_title(user_message, ai_reply)
+            supabase.table("conversations").update({
+                "title": smart_title
+            }).eq("conversation_id", conv_id).execute()
 
-        return jsonify({"response": ai_reply}), 200
+
+        return jsonify({
+            "response": ai_reply,
+            "conversation_id": conv_id
+        }), 200
+
 
     except Exception as e:
         logging.error(f"/chat error: {e}")
@@ -717,8 +756,33 @@ def option_letter_to_text(letter, answer_option_text):
 @app.route('/ask', methods=['POST'])
 def ask():
     try:
-        user_message = request.json.get("message", "")  # Get the user's message
+        user_message = request.json.get("message", "")
         user_id = request.json.get("user_id")
+        conv_id = request.json.get("conversation_id")
+
+        if not user_message:
+            return jsonify({"error": "No message provided"}), 400
+        if not user_id:
+            return jsonify({"error": "No user_id provided"}), 400
+
+        # Validate or create conversation
+        if conv_id:
+            existing_conv = supabase.table("conversations").select("conversation_id") \
+                .eq("conversation_id", conv_id).eq("user_id", user_id).execute()
+            if not existing_conv.data:
+                conv_id = None
+
+        # Step 2: Create new conversation with placeholder title
+        is_new_conversation = False
+        if not conv_id:
+            conv_id = str(uuid.uuid4())
+            supabase.table("conversations").insert({
+                "conversation_id": conv_id,
+                "user_id": user_id,
+                "created_at": datetime.now().isoformat(),
+                "title": "New Chat"
+            }).execute()
+            is_new_conversation = True
         
         # List of phrases that indicate the user wants a summary or overview
         summary_keywords = [
@@ -744,39 +808,67 @@ def ask():
             "can you generate questions from this document", "can you make questions from this file", "can you make questions from this document",
         ]
 
-        # If the user asks for a summary, trigger the summary function
+        # Step 4: Route logic
         if any(re.search(r'\b' + re.escape(keyword) + r'\b', user_message, re.IGNORECASE) for keyword in summary_keywords):
-            return get_summary()
+            summary_response, status_code = get_summary(user_id)
+            response_text = summary_response.get_json()["response"]
 
-        # # If the user asks to generate questions, trigger question generation
         elif any(re.search(r'\b' + re.escape(keyword) + r'\b', user_message, re.IGNORECASE) for keyword in question_keywords):
-            return generate_questions()
+            summary_response, status_code = generate_questions(user_id)
+            response_text = summary_response.get_json()["response"]
 
-        # For any other question, perform similarity search and provide an answer
-        return get_answer_from_file(user_message, user_id)
+        else:
+            summary_response, status_code = get_answer_from_file(user_message, user_id)
+            response_text = summary_response.get_json()["response"]
+
+        # Step 5: Save to chat log
+        insert_chat_log_supabase_with_conversation(user_id, conv_id, user_message, response_text)
+
+        # Step 6: Generate title if this is first message
+        if is_new_conversation:
+            smart_title = generate_title(user_message, response_text)
+            supabase.table("conversations").update({
+                "title": smart_title
+            }).eq("conversation_id", conv_id).execute()
+
+        # Step 7: Return
+        return jsonify({"response": response_text, "conversation_id": conv_id}), status_code
+
 
     except Exception as e:
         logging.error(f"❌ Ask route error: {str(e)}")
         return jsonify({"error": "Internal server error"}), 500
     
 # === Functional Chains ===
-def get_summary():
+def get_summary(user_id):
     try:
-        global recent_file_uid
-        print("Summary function called")
-        print("file_uid:", recent_file_uid)
+        print(f"Generating summary for user: {user_id}")
 
-        if not recent_file_uid:
-            return jsonify({"error": "No recent file uploaded"}), 400
+        # Step 1: Get the most recently uploaded file for this user
+        response = supabase.table('documents') \
+            .select('file_uuid') \
+            .eq('user_id', user_id) \
+            .order('uploaded_at', desc=True) \
+            .limit(1) \
+            .execute()
 
-        response = supabase.table('documents').select('id', 'content').eq('file_uuid', recent_file_uid).execute()
-        docs = response.data
+        if not response.data:
+            return jsonify({"error": "No recent file uploaded."}), 400
 
+        file_uuid = response.data[0]['file_uuid']
+        print("📄 Using file UUID:", file_uuid)
+
+        # Step 2: Get all chunks for that file
+        chunks_res = supabase.table('documents') \
+            .select('content') \
+            .eq('file_uuid', file_uuid) \
+            .execute()
+
+        docs = chunks_res.data
         if not docs:
-            return jsonify({"error": "No content found for the given file."}), 404
+            return jsonify({"error": "No content found for this file."}), 404
 
         concatenated_text = "\n\n".join(doc['content'] for doc in docs)
-
         prompt = f"""
         You are an expert assistant with a deep understanding of how to summarize complex documents in a clear, concise, and professional manner. Based on the following content, summarize the key points in a way that is easy to understand, highlighting the most important information while keeping the summary brief and to the point.
 
@@ -801,7 +893,7 @@ def get_summary():
 
 
         # Optional: log the interaction
-        insert_chat_log("Summarize Request", summary)
+        # insert_chat_log("Summarize Request", summary)
 
         return jsonify({"response": summary}), 200
 
@@ -809,15 +901,31 @@ def get_summary():
         logging.error(f"Error in get_summary: {e}")
         return jsonify({"error": "Failed to summarize"}), 500
 
-def generate_questions():
-    global recent_file_uid
-    print("file_uid:", recent_file_uid)
-    print("Generate questions function called")
+def generate_questions(user_id):
     try:
-        if not recent_file_uid:
-            return jsonify({"error": "No recent file uploaded"}), 400
+        print(f"📌 Generating questions for user: {user_id}")
 
-        docs = supabase.table('documents').select('content').eq('file_uuid', recent_file_uid).execute().data
+        # Step 1: Get the most recently uploaded file for this user
+        response = supabase.table('documents') \
+            .select('file_uuid') \
+            .eq('user_id', user_id) \
+            .order('uploaded_at', desc=True) \
+            .limit(1) \
+            .execute()
+
+        if not response.data:
+            return jsonify({"error": "No recent file uploaded."}), 400
+
+        file_uuid = response.data[0]['file_uuid']
+        print(f"✅ Using file UUID: {file_uuid}")
+
+        # Step 2: Get all chunks for that file
+        docs_response = supabase.table('documents') \
+            .select('content') \
+            .eq('file_uuid', file_uuid) \
+            .execute()
+
+        docs = docs_response.data
         if not docs:
             return jsonify({"error": "No content found"}), 404
 
@@ -867,7 +975,7 @@ def generate_questions():
         [Repeat as needed for additional questions]
         """
         questions = llm.predict(prompt)
-        insert_chat_log("Generate Questions Request", questions.strip())
+        # insert_chat_log("Generate Questions Request", questions.strip())
         return jsonify({"response": questions.strip()}), 200
     except Exception as e:
         logging.error(f"Error in generate_questions: {e}")
@@ -918,17 +1026,17 @@ def get_answer_from_file(user_query, user_id):
             chunk_id = match['id']
             chunk_data = fetch_chunk_text_from_supabase(supabase, chunk_id, user_id)
 
-        if chunk_data:
-            relevant_docs.append(chunk_data)
-            print(f"Chunk Text: {chunk_data}")
+            if chunk_data:
+                relevant_docs.append(chunk_data)
+                print(f"Chunk Text: {chunk_data}")
             
 
-        if relevant_docs:
-            # Concatenate or process relevant_docs as needed before LLM
-            combined_text = "\n".join(relevant_docs)
-            # Build chat message properly
-            prompt = combined_text + "\n\nUser Question: " + user_query
-            result = llm([HumanMessage(content=prompt)])
+            if relevant_docs:
+                # Concatenate or process relevant_docs as needed before LLM
+                combined_text = "\n".join(relevant_docs)
+                # Build chat message properly
+                prompt = combined_text + "\n\nUser Question: " + user_query
+                result = llm([HumanMessage(content=prompt)])
 
             return jsonify({
                 "response": result.content,
@@ -941,13 +1049,7 @@ def get_answer_from_file(user_query, user_id):
         logging.error(f"Error in get_answer_from_file: {e}")
         return jsonify({"error": "Failed to fetch answer"}), 500
 
-def get_explanation_from_api(user_query):
-    try:
-        reply = llm.predict(user_query)
-        return jsonify({"response": reply.strip()}), 200
-    except Exception as e:
-        logging.error(f"Error in get_explanation_from_api: {e}")
-        return jsonify({"error": "Fallback failed"}), 500
+
     
 @app.route("/api/progress/<user_id>", methods=["GET"])
 def get_user_progress(user_id):
@@ -982,6 +1084,102 @@ def get_user_progress(user_id):
     except Exception as e:
         logging.error(f"Error fetching progress: {e}")
         return jsonify({"error": "Failed to fetch progress"}), 500
+    
+    
+    
+# --- Conversation Management ---
+@app.route("/api/conversations", methods=["GET", "POST"])
+def conversations():
+    if request.method == "GET":
+        user_id = request.args.get("user_id")
+        if not user_id:
+            return jsonify({"error": "Missing user_id"}), 400
+
+        try:
+            response = supabase.table("conversations").select(
+                "conversation_id, title, created_at, updated_at"
+            ).eq("user_id", user_id).order("updated_at", desc=True).execute()
+            return jsonify(response.data), 200
+        except Exception as e:
+            logging.error(f"Error fetching conversations: {e}")
+            return jsonify({"error": "Failed to fetch conversations"}), 500
+
+    elif request.method == "POST":
+        data = request.get_json()
+        user_id = data.get("user_id")
+        title = data.get("title", "New Chat")
+        if not user_id:
+            return jsonify({"error": "Missing user_id"}), 400
+
+        conv_id = str(uuid.uuid4())
+        try:
+            response = supabase.table("conversations").insert({
+                "conversation_id": conv_id,
+                "user_id": user_id,
+                "created_at": datetime.now().isoformat(),
+                "title": title
+            }).execute()
+            return jsonify(response.data[0]), 201
+        except Exception as e:
+            logging.error(f"Error creating conversation: {e}")
+            return jsonify({"error": "Failed to create conversation"}), 500
+
+
+@app.route("/api/conversations/<conversation_id>", methods=["PUT", "DELETE"])
+def update_or_delete_conversation(conversation_id):
+    if request.method == "PUT":
+        data = request.get_json()
+        title = data.get("title")
+        if not title:
+            return jsonify({"error": "Title is required"}), 400
+
+        try:
+            supabase.table("conversations").update({
+                "title": title,
+                "updated_at": datetime.now().isoformat()
+            }).eq("conversation_id", conversation_id).execute()
+            return jsonify({"message": "Conversation renamed"}), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    elif request.method == "DELETE":
+        try:
+            supabase.table("chat_logs").delete().eq("conversation_id", conversation_id).execute()
+            supabase.table("conversations").delete().eq("conversation_id", conversation_id).execute()
+            return jsonify({"message": "Conversation deleted"}), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/conversations/<conv_id>/logs", methods=["GET"])
+def get_chat_logs(conv_id):
+    try:
+        uuid.UUID(conv_id)  # Validate UUID format
+        logs = supabase.table("chat_logs").select(
+            "user_message, response_message, created_at"
+        ).eq("conversation_id", conv_id).order("created_at").execute()
+        return jsonify(logs.data), 200
+    except Exception as e:
+        return jsonify({"error": "Invalid or missing conversation ID"}), 400
+    
+    
+def generate_title(user_message, llm_response):
+    try:
+        prompt = f"""
+        Generate a short and meaningful title (3 to 6 words max) for a conversation based on this exchange:
+
+        User: {user_message}
+        Assistant: {llm_response}
+
+        The title should be concise, informative, and not include any quotation marks.
+        """
+        result = llm.predict(prompt)
+        return result.strip().replace('"', '')
+    except Exception as e:
+        logging.warning(f"⚠️ Failed to generate title: {e}")
+        return "New Chat"
+
+
 
 # === Run App ===
 if __name__ == '__main__':
