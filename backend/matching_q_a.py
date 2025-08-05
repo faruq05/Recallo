@@ -17,7 +17,7 @@ SUPABASE_URL = os.getenv("SUPABASE_URL", "https://bhrwvazkvsebdxstdcow.supabase.
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-model = joblib.load("model1.pkl")
+model = joblib.load("model.pkl")
 
 
 def generate_uuid():
@@ -146,55 +146,50 @@ def evaluate_and_save_quiz(user_id, topic_id, submitted_answers,email_id=None):
     }).eq("topic_id", topic_id).execute()
     
     
-        # --- 🔮 MODEL PREDICTION FOR NEXT REVIEW DATE ---
+    # --- 🔮 MODEL PREDICTION FOR NEXT REVIEW DATE ---
     # Fetch features from user_topic_review_features after trigger updates stats
     review_data = supabase.table("user_topic_review_features") \
-        .select("latest_score, avg_score, attempts_count, last_attempt") \
-        .eq("user_id", user_id) \
-        .eq("topic_id", topic_id) \
-        .maybe_single() \
-        .execute()
+    .select("latest_score, avg_score, attempts_count, last_attempt") \
+    .eq("user_id", user_id) \
+    .eq("topic_id", topic_id) \
+    .maybe_single() \
+    .execute()
+
 
     if review_data.data:
         latest_score = review_data.data.get("latest_score", score)
         avg_score = review_data.data.get("avg_score", score)
         attempts_count = review_data.data.get("attempts_count", 1)
 
-        last_attempt_str = review_data.data.get("last_attempt")
-        
-        if last_attempt_str:
-            # Parse as local datetime
-            last_attempt_ts = pd.to_datetime(last_attempt_str).timestamp()
+        # Parse last_attempt_date and compute days since
+        last_attempt_date_str = review_data.data.get("last_attempt_date")
+        if last_attempt_date_str:
+            last_attempt_date = datetime.strptime(last_attempt_date_str, "%Y-%m-%d").date()
+            days_since_last_attempt = (date.today() - last_attempt_date).days
         else:
-            # Fallback to now if missing
-            last_attempt_ts = datetime.now().timestamp()
+            days_since_last_attempt = 0  # default if not found
 
-        # Prepare model input
-        X = pd.DataFrame([{
-            "latest_score": latest_score,
-            "avg_score": avg_score,
-            "attempts_count": attempts_count,
-            "last_attempt_ts": last_attempt_ts
-        }])
+        # Now proceed with model input
+        X = np.array([[latest_score, avg_score, attempts_count, days_since_last_attempt]])
 
-        # Predict days until next review
         predicted_days = int(round(model.predict(X)[0]))
-        next_review_date = datetime.now() + timedelta(days=predicted_days)
+        next_review_date = date.today() + timedelta(days=predicted_days)
 
-        print(f"Predicted days: {predicted_days}, Next Review Date: {next_review_date.date()}")
+        print(f"Predicted days: {predicted_days}, Next Review Date: {next_review_date}")
 
-        # Update review features
+
+        print(f"Predicted days: {predicted_days}, Next Review Date: {next_review_date}")
+
         supabase.table("user_topic_review_features").update({
-            "next_review_date": next_review_date.date().isoformat(),
+            "next_review_date": next_review_date.isoformat(),
             "mastered": latest_score > 7
         }).eq("user_id", user_id).eq("topic_id", topic_id).execute()
 
-        logging.info(f"✅ Model predicted next review date: {next_review_date.date()}")
-
+        logging.info(f"✅ Model predicted next review date: {next_review_date}")
     else:
         logging.warning("⚠️ Could not fetch review features for model prediction.")
 
-    # Handle topic status update warning
+
     if not status_update or not status_update.data:
         logging.warning(f"⚠️ Failed to update topic_status to '{new_status}' for topic {topic_id}")
         
