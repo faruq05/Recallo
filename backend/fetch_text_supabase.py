@@ -1,3 +1,4 @@
+# fetch_text_supabase.py
 def fetch_chunk_text_from_supabase(supabase, chunk_id, user_id):
     try:
         response = supabase.table("documents") \
