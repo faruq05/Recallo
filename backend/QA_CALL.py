@@ -1,3 +1,4 @@
+# QA CALL
 from QA_ANSWER import generate_and_save_mcqs
 if __name__ == "__main__":
     import os

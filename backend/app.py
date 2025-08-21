@@ -1225,3 +1225,83 @@ def generate_title(user_message, llm_response):
 # === Run App ===
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
+# from flask import Flask, request, jsonify, session, abort
+# from flask_cors import CORS
+# import os
+# import logging
+# from supabase import create_client
+# from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
+# from langchain.memory import ConversationBufferWindowMemory
+# from langchain.chains import ConversationChain
+# from pinecone import Pinecone
+# from mailer import init_mail
+# import config
+
+# # Initialize Logging
+# logging.basicConfig(level=logging.DEBUG)
+
+# # Initialize Flask App
+# app = Flask(__name__)
+# # --- Load configuration from config.py ---
+# app.config['MAX_CONTENT_LENGTH'] = config.MAX_CONTENT_LENGTH
+# app.config['UPLOAD_FOLDER'] = config.UPLOAD_FOLDER
+# os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+# # CORS configuration
+# CORS(app, resources={
+#     r"/chat": {"origins": "http://localhost:5173", "methods": ["POST", "OPTIONS"]},
+#     r"/upload": {"origins": "http://localhost:5173", "methods": ["POST", "OPTIONS"]},
+#     r"/ask": {"origins": "http://localhost:5173", "methods": ["POST", "OPTIONS"]},
+#     r"/quiz-question": {"origins": "http://localhost:5173", "methods": ["POST", "OPTIONS"]},
+#     r"/generate-questions": {"origins": "http://localhost:5173", "methods": ["POST", "OPTIONS"]},
+#     r"/api/generate_flashcards": {"origins": "http://localhost:5173", "methods": ["POST", "OPTIONS"]},
+#     r"/submit-answers": {"origins": "http://localhost:5173", "methods": ["POST", "OPTIONS"]},
+#     r"/api/progress/.*": {"origins": "http://localhost:5173", "methods": ["GET", "OPTIONS"]},
+#     r"/api/answer-analysis": {"origins": "http://localhost:5173", "methods": ["GET", "OPTIONS"]},
+#     r"/api/update-weak-topics": {"origins": "http://localhost:5173", "methods": ["POST", "OPTIONS"]},
+#     r"/*": {"origins": "*"}
+# }, supports_credentials=True)
+
+# # Setup Flask-Mail
+# app.config.update(
+#     MAIL_SERVER=config.MAIL_SERVER,
+#     MAIL_PORT=config.MAIL_PORT,
+#     MAIL_USE_TLS=config.MAIL_USE_TLS,
+#     MAIL_USERNAME=config.MAIL_USERNAME,
+#     MAIL_PASSWORD=config.MAIL_PASSWORD,
+#     MAIL_DEFAULT_SENDER=config.MAIL_DEFAULT_SENDER,
+# )
+
+# init_mail(app)
+
+# # Initialize Supabase & Langchain Models
+# supabase = create_client(config.SUPABASE_URL, config.SUPABASE_KEY)
+# llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=config.GEMINI_API_KEY, temperature=0.7)
+# memory = ConversationBufferWindowMemory(k=10, return_messages=True)
+# conversation = ConversationChain(
+#     llm=llm,
+#     memory=memory,
+#     verbose=True
+# )
+# embedding_fn = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=config.GEMINI_API_KEY)
+
+# # --- Register Blueprints ---
+# def register_blueprints(app):
+#     from routes.chat_routes import chat_bp
+#     from routes.upload_routes import upload_bp
+#     from routes.quiz_routes import quiz_bp
+#     from routes.conversation_routes import conversation_bp
+#     from routes.progress_routes import progress_bp
+#     from routes.flashcard_routes import flashcard_bp
+    
+#     app.register_blueprint(chat_bp)
+#     app.register_blueprint(upload_bp)
+#     app.register_blueprint(quiz_bp)
+#     app.register_blueprint(conversation_bp)
+#     app.register_blueprint(progress_bp)
+#     app.register_blueprint(flashcard_bp)
+
+# # The main entry point
+# if __name__ == '__main__':
+#     register_blueprints(app)
+#     app.run(debug=True, port=5000)

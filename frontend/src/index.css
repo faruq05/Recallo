@@ -38,7 +38,7 @@ html{
   --cs-white:#fff;
   --cs-hover:#e49c00;
   --cs-border:#ffffff21;
-  --cs-matblack:#272727
+  --cs-matblack:#272727;
 }
 
 h1,
@@ -234,7 +234,7 @@ canvas {
 .home-container {
   background-image:
     url('./assets/hero_bg.png'),
-    radial-gradient(circle at bottom, #EDB437 -90%, #060606 110%);
+    radial-gradient(circle at bottom, #EDB437 -90%, #060606 120%);
   
   background-repeat: repeat, no-repeat;
   background-size: contain, cover;
