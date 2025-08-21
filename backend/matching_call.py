@@ -4,7 +4,7 @@ if __name__ == "__main__":
     topic_id = "fe0f16a0-735f-4154-ba13-cd9a91cdf798"  # your topic id
     
     submitted_answers_test = [
-    {"question_id": "fdcf427c-29b4-4bd3-90c8-81a1f3f2b489", "selected_answer": "C"},
+    {"question_id": "fdcf427c-29b4-4bd3-90c8-81a1f3f2b489", "selected_answer": "A"},
     {"question_id": "a1004890-8fb6-4405-85f7-0de6850b6208", "selected_answer": "C"},
     {"question_id": "28bcd5fa-6ea6-4c9c-ac44-5f2ed241f452", "selected_answer": "A"},
     {"question_id": "2b157266-cbdb-45eb-8644-9413be207ec5", "selected_answer": "B"},
