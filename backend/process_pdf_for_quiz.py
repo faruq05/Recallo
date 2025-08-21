@@ -58,14 +58,15 @@ def process_pdf_for_quiz(file_path, gemini_api_key, user_id, supabase, file_hash
         for idx, label in enumerate(clustering.labels_):
             clustered_chunks.setdefault(label, []).append(chunks[idx])
 
-        # 5. Setup LLM & Prompts
+        # 5. Setup LLM & Combined Prompt (ONE call returns Title + Summary)
         llm = ChatGoogleGenerativeAI(
             model="gemini-2.5-flash",
             google_api_key=gemini_api_key,
             temperature=0.3
         )
 
-        title_prompt = PromptTemplate(
+        # keep your original wording/constraints; just combined into one prompt
+        title_summary_prompt = PromptTemplate(
             input_variables=["content"],
             template=(
                 "From the following content, generate exactly ONE topic title.\n"
@@ -73,31 +74,39 @@ def process_pdf_for_quiz(file_path, gemini_api_key, user_id, supabase, file_hash
                 "- Maximum 5 words\n"
                 "- No lists or explanations\n"
                 "Content:\n{content}\n"
-                "Topic Title:"
-            )
-        )
-        summary_prompt = PromptTemplate(
-            input_variables=["content"],
-            template=(
+                "Topic Title:\n\n"
                 "Summarize the following content on the key points in 1-2 lines. "
                 "Focus on what this topic is mainly about and what it covers.\n\n"
                 "{content}\n\n"
                 "Summary:"
             )
         )
+        title_summary_chain = LLMChain(llm=llm, prompt=title_summary_prompt)
 
-        title_chain = LLMChain(llm=llm, prompt=title_prompt)
-        summary_chain = LLMChain(llm=llm, prompt=summary_prompt)
-
-        # 6. Generate and save topics
+        # 6. Generate and save topics (ONE LLM call per cluster)
         rows = []
         existing_titles = []
 
         for cluster_label, chunk_list in clustered_chunks.items():
             merged_content = "\n".join(chunk_list)
 
-            # Generate title
-            topic_title = title_chain.run(content=merged_content).strip().replace("*", "").replace("-", "")
+            # One call for both title and summary
+            resp = title_summary_chain.run(content=merged_content).strip()
+
+            # Parse:
+            # Expect output like:
+            # Topic Title: <title line>
+            # Summary: <one or more lines...>
+            title_match = re.search(r"Topic Title:\s*(.+)", resp, re.IGNORECASE)
+            summary_match = re.search(r"Summary:\s*([\s\S]+)$", resp, re.IGNORECASE)
+
+            if not title_match or not summary_match:
+                logging.info(f"Skipping malformed output: {resp[:200]}...")
+                continue
+
+            topic_title = title_match.group(1).strip().replace("*", "").replace("-", "")
+            topic_summary = summary_match.group(1).strip()
+
             if not topic_title:
                 continue
 
@@ -107,9 +116,6 @@ def process_pdf_for_quiz(file_path, gemini_api_key, user_id, supabase, file_hash
                 continue
 
             existing_titles.append(topic_title)
-
-            # Generate summary
-            topic_summary = summary_chain.run(content=merged_content).strip()
 
             # Add row
             rows.append({
