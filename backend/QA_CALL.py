@@ -3,7 +3,7 @@ if __name__ == "__main__":
     import os
 
     TOPIC_ID = "3c2787be-56c2-45db-a577-552d1de5a6db"
-    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")  # set your key here
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
     try:
         generated = generate_and_save_mcqs(TOPIC_ID, GEMINI_API_KEY, difficulty_mode="hard")
