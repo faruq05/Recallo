@@ -41,7 +41,7 @@ const FlashcardCarousel = ({ topic, flashcards, show, onHide, isLoading }) => {
             >
               {flashcards.map((card, idx) => (
                 <Carousel.Item key={idx}>
-                  <div className="p-4 border rounded bg-secondary text-white flashcard-item">
+                  <div className="p-4 bg-gray text-white flashcard-item">
                     <h5 className="mb-3">Core Concept</h5>
                     <p className="mb-4">{card.core_concept}</p>
 

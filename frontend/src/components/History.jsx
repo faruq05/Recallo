@@ -20,6 +20,7 @@ const History = ({
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState("");
   const [loading, setLoading] = useState(false);
+  const [newChatLoading, setNewChatLoading] = useState(false); // New state for new chat loader
 
   // Fetch all conversations
   useEffect(() => {
@@ -43,6 +44,7 @@ const History = ({
   );
 
   const handleNew = async () => {
+    setNewChatLoading(true); // Start loading
     try {
       const newId = await onNewConversation();
       if (newId) {
@@ -57,6 +59,8 @@ const History = ({
       }
     } catch (err) {
       console.error("Error creating new conversation:", err);
+    } finally {
+      setNewChatLoading(false); // Stop loading
     }
   };
 
@@ -126,8 +130,24 @@ const History = ({
           <button
             className="btn btn-sm btn-answer mb-2 w-100 d-flex align-items-center justify-content-center gap-2"
             onClick={handleNew}
+            disabled={newChatLoading} // Disable button while loading
           >
-            <Plus size={16} /> New Chat
+            {newChatLoading ? (
+              <>
+                <div
+                  className="spinner-border spinner-border-sm"
+                  role="status"
+                  style={{ width: "1rem", height: "1rem" }}
+                >
+                  <span className="visually-hidden">Loading...</span>
+                </div>
+                Creating...
+              </>
+            ) : (
+              <>
+                <Plus size={16} /> New Chat
+              </>
+            )}
           </button>
 
           <div className="input-group input-group-sm mb-3">

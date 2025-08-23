@@ -21,7 +21,7 @@ const ChatInput = ({
       <div className="chat-textarea-wrapper">
         <TextareaAutosize
           rows={1}
-          placeholder="Type your question here..."
+          placeholder="What would you like to ask me today?😄"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
@@ -35,14 +35,22 @@ const ChatInput = ({
       </div>
       <div className="chat-actions">
         {/* file select */}
-        <div className="fl_action d-flex align-items-center ">
+        <div className="fl_action d-flex align-items-center">
           <FileUpload onFileSelect={handleFileSelect} />
-          <button
-            className="btn btn-cs ms-2 btn-otl"
-            onClick={() => setUseDocumentMode(!useDocumentMode)}
-          >
-            {useDocumentMode ? "Switch to Chat Mode" : "Switch to Document Mode"}
-          </button>
+
+          <div className="mode-toggle ms-2">
+            <input
+              type="checkbox"
+              id="modeSwitch"
+              checked={useDocumentMode}
+              onChange={() => setUseDocumentMode(!useDocumentMode)}
+            />
+            <label htmlFor="modeSwitch" className="toggle-label">
+              <span className="toggle-left">Chat</span>
+              <span className="toggle-right">Doc</span>
+              <span className="toggle-ball"></span>
+            </label>
+          </div>
         </div>
         {/* send stop button */}
         <div className="msg_send d-flex">

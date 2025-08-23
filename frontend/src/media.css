@@ -1,126 +1,171 @@
-@media(max-width:1199px) {
+:root {
+  /* RESPONSIVE BREAKPOINTS */
+  --breakpoint-xs: 575px;
+  --breakpoint-sm: 767px;
+  --breakpoint-md: 991px;
+  --breakpoint-lg: 1199px;
+  
+  /* RESPONSIVE FONT SIZES */
+  --font-size-h1-lg: 50px;
+  --font-size-h1-md: 60px;
+  --font-size-h1-sm: 40px;
+  --font-size-h1-xs: 50px;
+  --font-size-h2-sm: 38px;
+  --font-size-h3-sm: 20px;
+  --font-size-h4-sm: 25px;
+  --font-size-btn-xs: 12px;
+  
+  /* RESPONSIVE WIDTHS */
+  --width-chat-md: 80%;
+  --width-chat-xs: 90%;
+  --width-todo-xs: 90%;
+  
+  /* RESPONSIVE HEIGHTS */
+  --height-hero-sm: 70vh;
+  --height-banner-sm: 100vh;
+  
+  /* RESPONSIVE PADDING */
+  --padding-chat-md: 15px;
+  --padding-sidebar-collapsed: 0;
+  
+  /* RESPONSIVE MARGINS */
+  --margin-navbar-md: 20px;
+  --margin-todo-xs: 30px;
+  --margin-hero-button-xs: 0 0 20px 0px;
+  
+  /* RESPONSIVE POSITIONING */
+  --z-sidebar: 1040;
+}
+
+/* ========== RESPONSIVE MEDIA QUERIES ========== */
+
+/* Large screens and below (≤1199px) */
+@media (max-width: 1199px) {
   h1 {
-  font-size: 50px!important;
-  font-weight: 800;
-}
+    font-size: var(--font-size-h1-lg) !important;
+    font-weight: var(--font-weight-extra-bold);
+  }
 
-.hero_content h1{
-    width: 100%;
-}
+  .hero_content h1 {
+    width: var(--width-full);
+  }
 
-.chat-input-section {
-    width: 100%;
+  .chat-input-section {
+    width: var(--width-full);
     margin: auto;
-}
+  }
 }
 
-@media(max-width:991px) {
-  .header-btn{
+/* Medium screens and below (≤991px) */
+@media (max-width: 991px) {
+  .header-btn {
     display: none;
   }
 
   .navbar-collapse {
     align-items: center;
-    margin-top: 20px;
+    margin-top: var(--margin-navbar-md);
+  }
+
+  .chatinterface {
+    flex: 1;
+    padding: var(--padding-chat-md);
+  }
+
+  .chat-response {
+    width: var(--width-chat-md);
+  }
+
+  .arch_grp {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-base);
+  }
+
+  .rbc3 {
+    width: var(--width-full);
+  }
 }
 
-.chatinterface {
-  flex: 1;
-  padding: 15px;
-}
-
-.chat-response {
-    width: 80%;
-}
-
-.arch_grp{
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.rbc3{
-  width: 100%;
-}
-
-}
-
-@media(max-width:767px) {
+/* Small screens and below (≤767px) */
+@media (max-width: 767px) {
   h1 {
-    font-size: 40px !important;
+    font-size: var(--font-size-h1-sm) !important;
   }
 
   .hero_content p {
-    width: 100%;
+    width: var(--width-full);
   }
 
   .sidebar-area {
     position: fixed;
     top: 0;
     left: 0;
-    height: 100%;
-    z-index: 1040;
+    height: var(--width-full);
+    z-index: var(--z-sidebar);
   }
 
   .sidebar.collapsed {
     width: 0 !important;
-    padding: 0 !important;
+    padding: var(--padding-sidebar-collapsed) !important;
     overflow: hidden;
     position: relative;
   }
 
-  .banner .row{
-    height: 100vh!important;
+  .banner .row {
+    height: var(--height-banner-sm) !important;
   }
-
-
 
   .hero .row {
-    height: 70vh;}
+    height: var(--height-hero-sm);
+  }
   
-    h1{
-      font-size: 60px!important;
-    }
-      h2{
-      font-size: 38px!important;
-    }
-      h3{
-      font-size: 20px!important;
-    }
-      h4{
-      font-size: 25px!important;
-    }
+  h1 {
+    font-size: var(--font-size-h1-md) !important;
+  }
+  
+  h2 {
+    font-size: var(--font-size-h2-sm) !important;
+  }
+  
+  h3 {
+    font-size: var(--font-size-h3-sm) !important;
+  }
+  
+  h4 {
+    font-size: var(--font-size-h4-sm) !important;
+  }
 }
 
-
-@media(max-width:575px){
-  .chat-response{
-    width: 90%;
+/* Extra small screens and below (≤575px) */
+@media (max-width: 575px) {
+  .chat-response {
+    width: var(--width-chat-xs);
   }
 
-   .draggercard{
+  .draggercard {
     flex-direction: column;
   }
 
   .todocard {
-    width: 90%!important;
-    margin-top: 30px;
+    width: var(--width-todo-xs) !important;
+    margin-top: var(--margin-todo-xs);
     margin-bottom: 0px;
     margin: auto;
   }
 
-  .btn-otl{
-    font-size: 12px;
+  .btn-otl {
+    font-size: var(--font-size-btn-xs);
   }
 
-   h1{
-      font-size: 50px!important;
-    }
+  h1 {
+    font-size: var(--font-size-h1-xs) !important;
+  }
 }
 
-
-@media(max-width:381px) {
-  .hero_button a{
-    margin: 0 0 20px 0px;
+/* Ultra small screens (≤381px) */
+@media (max-width: 381px) {
+  .hero_button a {
+    margin: var(--margin-hero-button-xs);
   }
 }

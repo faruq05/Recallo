@@ -228,7 +228,7 @@ const Exam = () => {
     );
   }
   return (
-    <div className="chat chat-wrapper chat_scroll d-flex min-vh-100">
+    <div className="chat chat-wrapper chat_scroll d-flex min-vh-100 p-0">
       {submitting && (
         <div className="exam-loader-overlay">
           <div className="spinner-border text-light" role="status">
