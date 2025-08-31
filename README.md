@@ -6,7 +6,7 @@ Recallo is an intelligent platform that leverages AI and the science of spaced r
 1️⃣ Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/Recallo.git
+git clone https://github.com/faruq05/Recallo.git
 cd Recallo
 ```
 
@@ -48,19 +48,16 @@ GEMINI_API_KEY=your_gemini_api_key
 ```
 
 ## 💻 How to Run the Application
-1. Start the frontend
+1. Run Command
+```python
+npm run setup
+```
+2. Start the app
 ```python
 cd frontend
 npm run dev
 ```
-2. Activate the Virtual Environment (for AI Engine)
-```python
-cd ai-engine
-.venv\Scripts\activate  # Windows
-# Or
-source .venv/bin/activate  # macOS/Linux
-```
-3.  Run the Backend Server
+Go back to the root folder
 ```python
 cd backend
 python app.py
