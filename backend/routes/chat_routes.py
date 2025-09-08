@@ -3,6 +3,7 @@ import uuid
 import logging
 import re
 import os
+# import time
 from datetime import datetime
 from pinecone import Pinecone
 from langchain_pinecone import PineconeVectorStore
@@ -76,24 +77,25 @@ def chat():
 
         if not user_message:
             return jsonify({"error": "No message provided"}), 400
-        if not user_id:
-            return jsonify({"error": "No user ID provided"}), 400
+        # if not user_id:
+        #     return jsonify({"error": "No user ID provided"}), 400
         
         logging.info(f"Received message: {user_message}")
         
         # Step 1: Handle conversation ID safely
         if not conv_id:
             conv_id = str(uuid.uuid4())
-            supabase.table("conversations").insert({
-                "conversation_id": conv_id,
-                "user_id": user_id,
-                "created_at": datetime.now().isoformat(),
-                "title": "New Chat"
-            }).execute()
+            if user_id:
+                supabase.table("conversations").insert({
+                    "conversation_id": conv_id,
+                    "user_id": user_id,
+                    "created_at": datetime.now().isoformat(),
+                    "title": "New Chat"
+                }).execute()
 
         # Enhanced educational and conversational prompt
         prompt = f"""
-        You are an AI assistant and your name is Recallo, with a deep knowledge base designed to help users learn and understand any topic in the most effective and engaging way. Your role is to provide clear, accurate, and detailed explanations, making complex topics easy to understand. 
+        You are an AI assistant named Recallo. Always refer to yourself as Recallo. With a deep knowledge base designed to help users learn and understand any topic in the most effective and engaging way. Your role is to provide clear, accurate, and detailed explanations, making complex topics easy to understand. 
 
         Respond to the user with a friendly, conversational tone, as if you're explaining the concept to a student. Break down the topic step by step when necessary, and give real-life examples to aid comprehension. Also, offer YouTube video suggestions that are relevant to the topic for further learning.
 
@@ -104,18 +106,22 @@ def chat():
         
         
         # Run the conversation chain with memory
+        # start_time = time.time()
         ai_reply = conversation.predict(input=user_message)
-        
+        # end_time = time.time()
+        # elapsed = round(end_time - start_time, 2)  # seconds, rounded
+        # logging.info(f"AI reply generated in {elapsed} seconds")
         # Step 3: Insert log
-        insert_chat_log_supabase_with_conversation(user_id, conv_id, user_message, ai_reply)
+        if user_id:
+            insert_chat_log_supabase_with_conversation(user_id, conv_id, user_message, ai_reply)
 
         # Step 4: If this is the first message, generate smart title
-        log_check = supabase.table("chat_logs").select("id").eq("conversation_id", conv_id).execute()
-        if log_check.data and len(log_check.data) == 1:
-            smart_title = generate_title(user_message, ai_reply)
-            supabase.table("conversations").update({
-                "title": smart_title
-            }).eq("conversation_id", conv_id).execute()
+            log_check = supabase.table("chat_logs").select("id").eq("conversation_id", conv_id).execute()
+            if log_check.data and len(log_check.data) == 1:
+                smart_title = generate_title(user_message, ai_reply)
+                supabase.table("conversations").update({
+                    "title": smart_title
+                }).eq("conversation_id", conv_id).execute()
 
 
         return jsonify({

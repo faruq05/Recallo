@@ -53,6 +53,9 @@ const ChatInterface = () => {
       if (session?.user?.id) {
         setUserId(session.user.id);
         fetchConversations(session.user.id);
+      }else {
+        setUserId(null);      
+        setConversations([]);  
       }
     };
     fetchSession();
@@ -72,6 +75,7 @@ const ChatInterface = () => {
 
   const handleNewConversation = async () => {
     if (!userId) return null;
+    
     try {
       const response = await fetch("http://127.0.0.1:5000/api/conversations", {
         method: "POST",
