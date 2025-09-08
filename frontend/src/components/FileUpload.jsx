@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPlus } from "@fortawesome/free-solid-svg-icons";
 import { Tooltip } from "bootstrap";
-
+const BASE_URL = import.meta.env.VITE_BACKEND_URL || "http://127.0.0.1:5000";
 const FileUpload = ({ onFileSelect, disableDefaultUpload = false }) => {
   useEffect(() => {
     const tooltipTriggerList = document.querySelectorAll(
@@ -45,7 +45,7 @@ const FileUpload = ({ onFileSelect, disableDefaultUpload = false }) => {
     formData.append("message", "File upload with user_id!");
 
     try {
-      const res = await fetch("http://127.0.0.1:5000/upload", {
+      const res = await fetch(`${BASE_URL}/upload`, {
         method: "POST",
         body: formData,
       });

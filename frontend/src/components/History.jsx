@@ -21,12 +21,12 @@ const History = ({
   const [editTitle, setEditTitle] = useState("");
   const [loading, setLoading] = useState(false);
   const [newChatLoading, setNewChatLoading] = useState(false); // New state for new chat loader
-
+  const BASE_URL = import.meta.env.VITE_BACKEND_URL || "http://127.0.0.1:5000";
   // Fetch all conversations
   useEffect(() => {
     if (isHistoryOpen && isLoggedIn && userId) {
       setLoading(true);
-      fetch(`http://127.0.0.1:5000/api/conversations?user_id=${userId}`)
+      fetch(`${BASE_URL}/api/conversations?user_id=${userId}`)
         .then((res) =>
           res.ok ? res.json() : Promise.reject("Failed to fetch")
         )
@@ -67,7 +67,7 @@ const History = ({
   const handleDeleteAndStartNewChat = async (convId) => {
     try {
       // 1) delete on server
-      await fetch(`http://127.0.0.1:5000/api/conversations/${convId}`, {
+      await fetch(`${BASE_URL}/api/conversations/${convId}`, {
         method: "DELETE",
       });
 
@@ -89,7 +89,7 @@ const History = ({
 
   const handleRename = async (conversationId, newTitle) => {
     try {
-      await fetch(`http://127.0.0.1:5000/api/conversations/${conversationId}`, {
+      await fetch(`${BASE_URL}/api/conversations/${conversationId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: newTitle }),
