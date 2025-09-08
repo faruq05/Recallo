@@ -99,5 +99,8 @@ app.register_blueprint(progress_bp)
 app.register_blueprint(conversation_bp)
 
 # === Run App ===
+# if __name__ == '__main__':
+#     app.run(debug=True, port=5000)
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
