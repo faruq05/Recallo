@@ -7,8 +7,12 @@ from datetime import datetime, date
 from QA_ANSWER import generate_and_save_mcqs
 from matching_q_a import evaluate_and_save_quiz
 from langchain.schema import HumanMessage
-
+import os
 quiz_bp = Blueprint('quiz', __name__)
+
+frontend_origin = os.getenv("FRONTEND_URL")  # default to dev
+frontend_prod = os.getenv("FRONTEND_PROD")
+allowed_origins = [frontend_origin, frontend_prod]
 
 # --- Endpoint to update weak topics ---
 @quiz_bp.route("/api/update-weak-topics", methods=["POST"])
@@ -67,11 +71,15 @@ def update_weak_topics():
 @quiz_bp.route("/generate-questions", methods=['POST', 'OPTIONS'])
 def generate_questions():
     GEMINI_API_KEY = current_app.config['GEMINI_API_KEY']
-    
+    origin = request.headers.get("Origin")
+    if origin in allowed_origins:
+        cors_origin = origin
+    else:
+        cors_origin = allowed_origins[-1]  # fallback to production URL
     if request.method == 'OPTIONS':
         # Respond to preflight CORS request
         response = make_response()
-        response.headers.add("Access-Control-Allow-Origin", "http://localhost:5173")
+        response.headers.add("Access-Control-Allow-Origin", cors_origin)
         response.headers.add("Access-Control-Allow-Headers", "Content-Type")
         response.headers.add("Access-Control-Allow-Methods", "POST, OPTIONS")
         return response, 204
@@ -99,13 +107,13 @@ def generate_questions():
         ]
 
         response = jsonify({"questions": questions_for_frontend})
-        response.headers.add("Access-Control-Allow-Origin", "http://localhost:5173")
+        response.headers.add("Access-Control-Allow-Origin", cors_origin)
         return response, 200
     except Exception as e:
         import traceback
         traceback.print_exc()  # <-- logs to terminal
         response = jsonify({"error": str(e)})
-        response.headers.add("Access-Control-Allow-Origin", "http://localhost:5173")
+        response.headers.add("Access-Control-Allow-Origin", cors_origin)
         return response, 500
 
 # submit answer
