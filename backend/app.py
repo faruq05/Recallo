@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, send_from_directory
 from flask_cors import CORS
 import os
 import logging
@@ -106,10 +106,16 @@ app.register_blueprint(conversation_bp)
 # === Run App ===
 # if __name__ == '__main__':
 #     app.run(debug=True, port=5000)
-@app.route("/")
-def index():
-    return "✅ ReCallo backend is running!"
+# === Serve React SPA ===
+@app.route("/", defaults={"path": ""})
+@app.route("/<path:path>")
+def serve_react(path):
+    dist_dir = os.path.join(os.getcwd(), "dist")
+    if path != "" and os.path.exists(os.path.join(dist_dir, path)):
+        return send_from_directory(dist_dir, path)
+    return send_from_directory(dist_dir, "index.html")
 
+# === Run App ===
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
