@@ -17,7 +17,7 @@ import { useNavigate } from "react-router-dom";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { ClockPlus } from "lucide-react";
 import { FolderArchive } from "lucide-react";
-
+const BASE_URL = import.meta.env.VITE_BACKEND_URL || "http://127.0.0.1:5000";
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_KEY
@@ -54,7 +54,7 @@ const Topics = () => {
     setLoadingTopics(true);
     try {
       // 1. Trigger backend update of weak topics
-      await fetch("http://localhost:5000/api/update-weak-topics", {
+      await fetch(`${BASE_URL}/api/update-weak-topics`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -100,7 +100,7 @@ const Topics = () => {
         formData.append("file", file);
         formData.append("user_id", userId);
 
-        xhr.open("POST", "http://localhost:5000/quiz-question");
+        xhr.open("POST", `${BASE_URL}/quiz-question`);
 
         // 👇 Tracks file upload progress
         xhr.upload.onprogress = (event) => {

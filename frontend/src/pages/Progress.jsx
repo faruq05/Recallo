@@ -12,7 +12,7 @@ import { CircularProgressbar, buildStyles } from "react-circular-progressbar";
 import "react-circular-progressbar/dist/styles.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import GraphAnalysis from "../components/GraphAnalysis";
-
+const BASE_URL = import.meta.env.VITE_BACKEND_URL || "http://127.0.0.1:5000";
 const Progress = () => {
   const {
     user,
@@ -38,7 +38,7 @@ const Progress = () => {
       try {
 
         // 🔁 Trigger weak topic update first
-        await fetch("http://localhost:5000/api/update-weak-topics", {
+        await fetch(`${BASE_URL}/api/update-weak-topics`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ user_id: userId }),
@@ -46,7 +46,7 @@ const Progress = () => {
 
         // ✅ Then fetch progress
         const response = await fetch(
-          `http://localhost:5000/api/progress/${userId}`
+          `${BASE_URL}/api/progress/${userId}`
         );
         if (response.ok) {
           const { attempts, topics } = await response.json();
@@ -193,7 +193,7 @@ const Progress = () => {
     setAttemptData(null);
     try {
       const response = await fetch(
-        `http://localhost:5000/api/answer-analysis?topic_id=${topicId}&attempt_number=${attemptNumber}&user_id=${userId}`
+        `${BASE_URL}/api/answer-analysis?topic_id=${topicId}&attempt_number=${attemptNumber}&user_id=${userId}`
       );
       if (response.ok) {
         const data = await response.json();

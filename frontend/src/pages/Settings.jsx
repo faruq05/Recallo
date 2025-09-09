@@ -3,7 +3,7 @@ import Sidebar from "../components/Sidebar";
 import History from "../components/History";
 import useSession from "../utils/useSession";
 import "bootstrap/dist/css/bootstrap.min.css";
-
+const BASE_URL = import.meta.env.VITE_BACKEND_URL || "http://127.0.0.1:5000";
 const Settings = () => {
   const [settings, setSettings] = useState({
     global_settings: {
@@ -34,7 +34,7 @@ const Settings = () => {
 
   const fetchSettings = async () => {
     try {
-      const response = await fetch(`http://127.0.0.1:5000/api/notification-settings/${userId}`);
+      const response = await fetch(`${BASE_URL}/api/notification-settings/${userId}`);
       if (response.ok) {
         const data = await response.json();
         setSettings(data);

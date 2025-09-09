@@ -5,7 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Auth } from "@supabase/auth-ui-react";
 import { ThemeSupa } from "@supabase/auth-ui-shared";
 import Header from "../components/header";
-
+const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL || "http://localhost:5173";
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_KEY
@@ -59,7 +59,7 @@ export default function SignIn() {
                   supabaseClient={supabase}
                   appearance={{ theme: ThemeSupa }}
                   providers={["google", "github"]}
-                  redirectTo="http://localhost:5173/signin"
+                  redirectTo={`${FRONTEND_URL}/signin`}
                 />
               </div>
             </div>

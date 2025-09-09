@@ -5,7 +5,7 @@ import useSession from "../utils/useSession";
 import { EqualApproximately } from "lucide-react";
 import "bootstrap/dist/css/bootstrap.min.css";
 import { useLocation, useNavigate } from "react-router-dom";
-
+const BASE_URL = import.meta.env.VITE_BACKEND_URL || "http://127.0.0.1:5000";
 const Exam = () => {
   // Session & UI state from your custom hook
   const {
@@ -45,7 +45,7 @@ const Exam = () => {
     }
     setLoadingQuestions(true);
     try {
-      const res = await fetch("http://localhost:5000/generate-questions", {
+      const res = await fetch(`${BASE_URL}/generate-questions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -136,7 +136,7 @@ const Exam = () => {
           submitted_answers: formattedAnswers,
         });
 
-        const response = await fetch("http://localhost:5000/submit-answers", {
+        const response = await fetch(`${BASE_URL}/submit-answers`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
