@@ -41,19 +41,22 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 frontend_dev = os.getenv("FRONTEND_URL", "http://localhost:5173")
 frontend_prod = os.getenv("FRONTEND_PROD", "https://recallo.faruqweb.com")
 
-allowed_origins = [frontend_dev, frontend_prod]
+allowed_origins = [
+    os.getenv("FRONTEND_URL", "http://localhost:5173"),
+    os.getenv("FRONTEND_PROD", "https://recallo.faruqweb.com")
+]
 
 CORS(app, resources={
-    r"/chat": {"origins": allowed_origins, "methods": ["POST", "OPTIONS"]},
-    r"/upload": {"origins": allowed_origins, "methods": ["POST", "OPTIONS"]},
-    r"/ask": {"origins": allowed_origins, "methods": ["POST", "OPTIONS"]},
-    r"/quiz-question": {"origins": allowed_origins, "methods": ["POST", "OPTIONS"]},
-    r"/generate-questions": {"origins": allowed_origins, "methods": ["POST", "OPTIONS"]},
-    r"/api/generate_flashcards": {"origins": allowed_origins, "methods": ["POST", "OPTIONS"]},
-    r"/submit-answers": {"origins": allowed_origins, "methods": ["POST", "OPTIONS"]},
-    r"/api/progress/.*": {"origins": allowed_origins, "methods": ["GET", "OPTIONS"]},
-    r"/api/answer-analysis": {"origins": allowed_origins, "methods": ["GET", "OPTIONS"]},
-    r"/api/update-weak-topics": {"origins": allowed_origins, "methods": ["POST", "OPTIONS"]},
+    # r"/chat": {"origins": allowed_origins, "methods": ["POST", "OPTIONS"]},
+    # r"/upload": {"origins": allowed_origins, "methods": ["POST", "OPTIONS"]},
+    # r"/ask": {"origins": allowed_origins, "methods": ["POST", "OPTIONS"]},
+    # r"/quiz-question": {"origins": allowed_origins, "methods": ["POST", "OPTIONS"]},
+    # r"/generate-questions": {"origins": allowed_origins, "methods": ["POST", "OPTIONS"]},
+    # r"/api/generate_flashcards": {"origins": allowed_origins, "methods": ["POST", "OPTIONS"]},
+    # r"/submit-answers": {"origins": allowed_origins, "methods": ["POST", "OPTIONS"]},
+    # r"/api/progress/.*": {"origins": allowed_origins, "methods": ["GET", "OPTIONS"]},
+    # r"/api/answer-analysis": {"origins": allowed_origins, "methods": ["GET", "OPTIONS"]},
+    # r"/api/update-weak-topics": {"origins": allowed_origins, "methods": ["POST", "OPTIONS"]},
     r"/*": {"origins": "*"} 
 }, supports_credentials=True)
 

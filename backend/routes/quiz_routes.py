@@ -10,12 +10,13 @@ from langchain.schema import HumanMessage
 import os
 quiz_bp = Blueprint('quiz', __name__)
 
-frontend_origin = os.getenv("FRONTEND_URL")  # default to dev
-frontend_prod = os.getenv("FRONTEND_PROD")
+frontend_origin = os.getenv("FRONTEND_URL", "http://localhost:5173")
+frontend_prod = os.getenv("FRONTEND_PROD", "https://recallo.faruqweb.com")
 allowed_origins = [frontend_origin, frontend_prod]
 
 # --- Endpoint to update weak topics ---
 @quiz_bp.route("/api/update-weak-topics", methods=["POST"])
+@cross_origin(origins=allowed_origins)
 def update_weak_topics():
     supabase = current_app.config['supabase']
     data = request.get_json()
@@ -68,21 +69,23 @@ def update_weak_topics():
     })
 
 # exam route
-@quiz_bp.route("/generate-questions", methods=['POST', 'OPTIONS'])
+# ================= GENERATE QUESTIONS ================= #
+@quiz_bp.route("/generate-questions", methods=["POST"])
+@cross_origin(origins=allowed_origins)
 def generate_questions():
     GEMINI_API_KEY = current_app.config['GEMINI_API_KEY']
-    origin = request.headers.get("Origin")
-    if origin in allowed_origins:
-        cors_origin = origin
-    else:
-        cors_origin = allowed_origins[-1]  # fallback to production URL
-    if request.method == 'OPTIONS':
-        # Respond to preflight CORS request
-        response = make_response()
-        response.headers.add("Access-Control-Allow-Origin", cors_origin)
-        response.headers.add("Access-Control-Allow-Headers", "Content-Type")
-        response.headers.add("Access-Control-Allow-Methods", "POST, OPTIONS")
-        return response, 204
+    # origin = request.headers.get("Origin")
+    # if origin in allowed_origins:
+    #     cors_origin = origin
+    # else:
+    #     cors_origin = allowed_origins[-1]  # fallback to production URL
+    # if request.method == 'OPTIONS':
+    #     # Respond to preflight CORS request
+    #     response = make_response()
+    #     response.headers.add("Access-Control-Allow-Origin", cors_origin)
+    #     response.headers.add("Access-Control-Allow-Headers", "Content-Type")
+    #     response.headers.add("Access-Control-Allow-Methods", "POST, OPTIONS")
+    #     return response, 204
 
     data = request.get_json()
     print("the data is ", data)
@@ -105,27 +108,33 @@ def generate_questions():
             }
             for q in questions
         ]
+        return jsonify({"questions": questions_for_frontend}), 200
 
-        response = jsonify({"questions": questions_for_frontend})
-        response.headers.add("Access-Control-Allow-Origin", cors_origin)
-        return response, 200
     except Exception as e:
-        import traceback
-        traceback.print_exc()  # <-- logs to terminal
-        response = jsonify({"error": str(e)})
-        response.headers.add("Access-Control-Allow-Origin", cors_origin)
-        return response, 500
+        logging.exception("Error generating questions")
+        return jsonify({"error": str(e)}), 500
 
-# submit answer
-@quiz_bp.route("/submit-answers", methods=["POST", "OPTIONS"])
-@cross_origin()  # Add this decorator
+    #     response = jsonify({"questions": questions_for_frontend})
+    #     response.headers.add("Access-Control-Allow-Origin", cors_origin)
+    #     return response, 200
+    # except Exception as e:
+    #     import traceback
+    #     traceback.print_exc()  # <-- logs to terminal
+    #     response = jsonify({"error": str(e)})
+    #     response.headers.add("Access-Control-Allow-Origin", cors_origin)
+    #     return response, 500
+    
+
+# ================= SUBMIT ANSWERS ================= #
+@quiz_bp.route("/submit-answers", methods=["POST"])
+@cross_origin(origins=allowed_origins)
 def submit_answers():
-    if request.method == "OPTIONS":
-        response = make_response()
-        response.headers["Access-Control-Allow-Origin"] = "*"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type"
-        response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
-        return response
+    # if request.method == "OPTIONS":
+    #     response = make_response()
+    #     response.headers["Access-Control-Allow-Origin"] = "*"
+    #     response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    #     response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+    #     return response
 
     try:
         data = request.get_json()
@@ -156,8 +165,9 @@ def submit_answers():
         logging.exception("Error while processing submitted answers")
         return jsonify({"error": str(e)}), 500
 
-# answer analysis in progress jsx   
-@quiz_bp.route("/api/answer-analysis")
+# ================= ANSWER ANALYSIS ================= #
+@quiz_bp.route("/api/answer-analysis", methods=["GET"])
+@cross_origin(origins=allowed_origins)
 def get_answer_analysis():
     supabase = current_app.config['supabase']
     
@@ -254,8 +264,11 @@ def get_answer_analysis():
     })
     
     
-# ===== FLASHCARD GENERATION ===== #
+
+
+# ================= FLASHCARD GENERATION ================= #
 @quiz_bp.route("/api/generate_flashcards", methods=["POST"])
+@cross_origin(origins=allowed_origins)
 def generate_flashcards():
     supabase = current_app.config['supabase']
     llm = current_app.config['llm']
