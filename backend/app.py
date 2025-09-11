@@ -107,6 +107,13 @@ app.register_blueprint(conversation_bp)
 # if __name__ == '__main__':
 #     app.run(debug=True, port=5000)
 # === Serve React SPA ===
+@app.route('/health')
+def health_check():
+    """
+    A simple health check endpoint to confirm the server is running.
+    """
+    return "Recallo backend running in Render"
+
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")
 def serve_react(path):
