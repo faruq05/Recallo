@@ -86,7 +86,7 @@ def process_pdf(file_path, supabase, gemini_api_key, user_id,file_hash):
 
         # Step 5: Embedding function using Gemini API
         embedding_fn = GoogleGenerativeAIEmbeddings(
-            model="models/embedding-001",
+            model="gemini-embedding-001",
             google_api_key=gemini_api_key
         )
 

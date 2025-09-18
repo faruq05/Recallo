@@ -66,14 +66,14 @@ init_mail(app)
 
 # === Initialize Supabase & Langchain Models ===
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=GEMINI_API_KEY, temperature=0.7)
+llm = ChatGoogleGenerativeAI(model="Gemini 2.0 Flash-Lite", google_api_key=GEMINI_API_KEY, temperature=0.7)
 memory = ConversationBufferWindowMemory(k=10, return_messages=True)
 conversation = ConversationChain(
     llm=llm,
     memory=memory,
     verbose=True
 )
-embedding_fn = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=GEMINI_API_KEY)
+embedding_fn = GoogleGenerativeAIEmbeddings(model="gemini-embedding-001", google_api_key=GEMINI_API_KEY)
 
 # === Global Variable ===
 recent_file_uid = None
