@@ -1,5 +1,6 @@
 # 📚 Recallo: AI-Driven Spaced Repetition & Recall Booster for Academic Success
-Version: 1.0.1
+##Version: 1.0.1
+
 Recallo is an intelligent platform that leverages AI and the science of spaced repetition to help students retain and recall information effectively. This monorepo contains the complete frontend, backend, and AI engine setup.
 
 ## 🚀 Quick Start Guide
