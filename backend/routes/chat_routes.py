@@ -375,7 +375,7 @@ def get_answer_from_file(user_query, user_id):
     try:
         supabase = current_app.config['supabase']
         embedding_fn = current_app.config['embedding_fn']
-        llm = current_app.config['llm']
+        llm1 = current_app.config['llm1']
         
         # # Get input from the request body
         # user_query = request.json.get("user_query")
@@ -430,7 +430,7 @@ def get_answer_from_file(user_query, user_id):
                 combined_text = "\n".join(relevant_docs)
                 # Build chat message properly
                 prompt = combined_text + "\n\nUser Question: " + user_query
-                result = llm([HumanMessage(content=prompt)])
+                result = llm1([HumanMessage(content=prompt)])
 
             return jsonify({
                 "response": result.content,

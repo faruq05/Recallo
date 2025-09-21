@@ -6,8 +6,9 @@ from PyPDF2 import PdfReader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain.schema import Document
-from config import PINECONE_API_KEY  # Ensure your API key is loaded correctly
+from config import PINECONE_API_KEY  
 from datetime import datetime
+from langchain_huggingface import HuggingFaceEmbeddings
 
 import pinecone
 print("pinecone module location:", pinecone.__file__)
@@ -84,14 +85,10 @@ def process_pdf(file_path, supabase, gemini_api_key, user_id,file_hash):
         # Debugging: Verify the metadata before storing
         logging.debug(f"Documents to be inserted: {[doc.metadata for doc in docs]}")
 
-        # Step 5: Embedding function using Gemini API
-        embedding_fn = GoogleGenerativeAIEmbeddings(
-            model="gemini-embedding-001",
-            google_api_key=gemini_api_key
-        )
-
+        embed_model=HuggingFaceEmbeddings(model_name="all-mpnet-base-v2")
+       
         # Step 6: Generate embeddings for each document chunk
-        embeddings = embedding_fn.embed_documents([doc.page_content for doc in docs])  # Generate embeddings for each chunk
+        embeddings = embed_model.embed_documents([doc.page_content for doc in docs])  # Generate embeddings for each chunk
         
         # Step 7: Prepare rows for Supabase insertion (with embeddings)
         rows = [

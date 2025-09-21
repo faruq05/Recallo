@@ -1,6 +1,6 @@
 {
   "name": "recallo-teapot410",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "scripts": {
     "setup:frontend": "cd frontend && npm install && echo REACT_APP_API_URL=http://localhost:5000 > .env",

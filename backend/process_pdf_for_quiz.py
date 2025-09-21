@@ -10,7 +10,13 @@ from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmb
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
 from sklearn.cluster import AgglomerativeClustering
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_groq import ChatGroq
+from dotenv import load_dotenv
 
+
+load_dotenv()
+groq_api_key = os.getenv("GROQ_API_KEY")
 
 def generate_unique_id():
     return str(uuid.uuid4())
@@ -44,50 +50,85 @@ def process_pdf_for_quiz(file_path, gemini_api_key, user_id, supabase, file_hash
             raise ValueError("No chunks generated.")
 
         # 3. Generate embeddings
-        embed_model = GoogleGenerativeAIEmbeddings(
-            model="models/embedding-001",
-            google_api_key=gemini_api_key
-        )
+        # embed_model = GoogleGenerativeAIEmbeddings(
+        #     model="models/embedding-001",
+        #     google_api_key=gemini_api_key
+        # )
+        embed_model=HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
         embeddings = embed_model.embed_documents(chunks)
 
         # 4. Clustering
-        clustering = AgglomerativeClustering(n_clusters=None, distance_threshold=0.6)
+        clustering = AgglomerativeClustering(n_clusters=None, distance_threshold=0.8)
         clustering.fit(embeddings)
 
         clustered_chunks = {}
         for idx, label in enumerate(clustering.labels_):
             clustered_chunks.setdefault(label, []).append(chunks[idx])
+            
+            
+        MAX_RPM = 30
+        total_requests = len(clustered_chunks)
+        buffer = 2
+        estimated_requests = total_requests + buffer
+
+        if estimated_requests > MAX_RPM:
+            return {
+                "status": "warning",
+                "message": (
+                    f"Your PDF has {estimated_requests} topic groups to process, "
+                    f"which exceeds the free tier limit of {MAX_RPM} requests per minute. "
+                    "Please try a smaller file or upgrade to continue."
+                )
+            }
 
         # 5. Setup LLM & Prompts
-        llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash",
-            google_api_key=gemini_api_key,
+        llm = ChatGroq(
+            model="gemma2-9b-it", 
+            api_key=groq_api_key,      
             temperature=0.3
         )
 
-        title_prompt = PromptTemplate(
+        # title_prompt = PromptTemplate(
+        #     input_variables=["content"],
+        #     template=(
+        #         "From the following content, generate exactly ONE topic title.\n"
+        #         "Constraints:\n"
+        #         "- Maximum 5 words\n"
+        #         "- No lists or explanations\n"
+        #         "Content:\n{content}\n"
+        #         "Topic Title:"
+        #     )
+        # )
+        # summary_prompt = PromptTemplate(
+        #     input_variables=["content"],
+        #     template=(
+        #         "Summarize the following content on the key points in 1-2 lines. "
+        #         "Focus on what this topic is mainly about and what it covers.\n\n"
+        #         "{content}\n\n"
+        #         "Summary:"
+        #     )
+        # )
+        
+        # title_chain = LLMChain(llm=llm, prompt=title_prompt)
+        # summary_chain = LLMChain(llm=llm, prompt=summary_prompt)
+        
+        combined_prompt = PromptTemplate(
             input_variables=["content"],
             template=(
-                "From the following content, generate exactly ONE topic title.\n"
-                "Constraints:\n"
+                "Analyze the following content and perform two tasks:\n\n"
+                "1. Generate exactly ONE topic title:\n"
                 "- Maximum 5 words\n"
-                "- No lists or explanations\n"
+                "- No lists, explanations, or extra words\n\n"
+                "2. Summarize the content in 1-2 lines:\n"
+                "- Focus on what the topic is mainly about and what it covers\n\n"
+                "Format your response strictly as:\n"
+                "Title: <Your generated title>\n"
+                "Summary: <Your summary>\n\n"
                 "Content:\n{content}\n"
-                "Topic Title:"
             )
         )
-        summary_prompt = PromptTemplate(
-            input_variables=["content"],
-            template=(
-                "Summarize the following content on the key points in 1-2 lines. "
-                "Focus on what this topic is mainly about and what it covers.\n\n"
-                "{content}\n\n"
-                "Summary:"
-            )
-        )
-
-        title_chain = LLMChain(llm=llm, prompt=title_prompt)
-        summary_chain = LLMChain(llm=llm, prompt=summary_prompt)
+        
+        combined_chain = LLMChain(llm=llm, prompt=combined_prompt)
 
         # 6. Generate and save topics
         rows = []
@@ -95,9 +136,15 @@ def process_pdf_for_quiz(file_path, gemini_api_key, user_id, supabase, file_hash
 
         for cluster_label, chunk_list in clustered_chunks.items():
             merged_content = "\n".join(chunk_list)
+            
+            
+            result= combined_chain.run(content=merged_content).strip()
+            lines=result.split("\n")
+            topic_title = next((line for line in lines if line.startswith("Title:")), "").replace("Title:", "").strip()
+            topic_summary = next((line for line in lines if line.startswith("Summary:")), "").replace("Summary:", "").strip()
 
             # Generate title
-            topic_title = title_chain.run(content=merged_content).strip().replace("*", "").replace("-", "")
+            # topic_title = title_chain.run(content=merged_content).strip().replace("*", "").replace("-", "")
             if not topic_title:
                 continue
 
@@ -108,8 +155,8 @@ def process_pdf_for_quiz(file_path, gemini_api_key, user_id, supabase, file_hash
 
             existing_titles.append(topic_title)
 
-            # Generate summary
-            topic_summary = summary_chain.run(content=merged_content).strip()
+            # # Generate summary
+            # topic_summary = summary_chain.run(content=merged_content).strip()
 
             # Add row
             rows.append({

@@ -250,7 +250,8 @@ def get_answer_analysis():
 @quiz_bp.route("/api/generate_flashcards", methods=["POST"])
 def generate_flashcards():
     supabase = current_app.config['supabase']
-    llm = current_app.config['llm']
+    # llm = current_app.config['llm']
+    llm= current_app.config['llm1']
     
     try:
         data = request.get_json()
@@ -351,31 +352,39 @@ def generate_flashcards():
 
 
         # System prompt
-        system_prompt = """You are a study assistant that generates concept flashcards from quiz questions.
+        system_prompt =""" You are a study assistant that generates concept flashcards from quiz questions.
 
-            Each flashcard must contain:
+            Your job:
+            - Analyze the provided quiz questions and answers.
+            - Identify the **10 most important core concepts** from the questions.
+            - For each concept, create a structured flashcard with clear explanations.
 
-            1. "core_concept" — the fundamental concept
-            2. "key_theory" — a clear explanation of the concept
-            3. "common_mistake" — (only if user got it wrong)
-
-            🔁 You MUST return **exactly 10 items** as a JSON array.
-
-            💡 Format:
+            Each flashcard must strictly follow this JSON structure:
             [
             {
-                "core_concept": "...",
-                "key_theory": "...",
-                "common_mistake": "..." // only if relevant
+                "core_concept": "The fundamental idea or topic being tested, stated clearly and concisely.",
+                "key_theory": "A clear, accurate explanation of the concept, written for learning and retention.",
+                "common_mistake": "The most common misunderstanding or error related to this concept. Only include this field if the user answered incorrectly. Omit entirely if not relevant."
             },
             ...
             ]
 
-            ⛔️ Do not include any markdown, headings, or extra text.
-            ⛔️ Do not repeat items. Stop after 10.
-            ✅ Output should start with `[` and end with `]`.
-            """
+            ⚙️ **Rules & Requirements:**
+            1. **Exactly 10 items** — no more, no less.
+            2. Each item must be **unique** — do NOT repeat concepts.
+            3. Output must be **pure JSON only**:
+            - No markdown.
+            - No extra commentary.
+            - The very first character must be `[` and the last character must be `]`.
+            4. If a concept was answered correctly, **omit** `"common_mistake"` entirely for that flashcard.
+            5. All explanations must be **clear, concise, and educational**, as if teaching a beginner.
+            6. Stop generating immediately after the 10th flashcard.
 
+            💡 **Summary:**
+            Your response should always be a clean JSON array of 10 educational flashcards, each with:
+            - `core_concept` — what to learn
+            - `key_theory` — why it matters
+            - `common_mistake` — only if relevant"""
 
 
         # final_prompt = f"{system_prompt}\n\nQuiz Questions:\n{prompt_examples}"

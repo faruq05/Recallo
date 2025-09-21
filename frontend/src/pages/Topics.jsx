@@ -114,15 +114,36 @@ const Topics = () => {
 
         // 👇 Fires after upload is complete but while server is generating topics
         xhr.onload = () => {
+          setProgress(100); // full bar when processing completes
+
           if (xhr.status === 200) {
-            setProgress(100); // Full progress only after server responds
-            const result = JSON.parse(xhr.responseText);
-            alert(
-              result.message ||
-                "File processed successfully. Topics saved to Supabase."
-            );
-            fetchTopics();
-            resolve();
+            let result;
+            try {
+              result = JSON.parse(xhr.responseText);
+            } catch (error) {
+              console.error("JSON parse error:", error);
+              return reject(new Error("Invalid JSON response from server."));
+            }
+
+            // Handle different backend statuses
+            if (result.status === "success") {
+              alert(`✅ ${result.message}`);
+              fetchTopics();
+              resolve();
+            } else if (result.status === "warning") {
+              alert(
+                `⚠️ Warning:\n${result.message}\n\n`
+              );
+              fetchTopics();
+              resolve();
+            } else if (result.status === "error") {
+              alert(`❌ Error:\n${result.message}`);
+              reject(new Error(result.message));
+            } else {
+              alert("Unexpected server response.");
+              reject(new Error("Unexpected server response."));
+            }
+
           } else {
             reject(new Error(`Upload failed with status ${xhr.status}`));
           }
@@ -332,13 +353,12 @@ const Topics = () => {
                         <div className="card-body">
                           <div className="topic_status d-flex justify-content-between align-items-center mb-4">
                             <span
-                              className={`badge m-0 ${
-                                topic.topic_status === "Weak"
-                                  ? "badge-weak"
-                                  : topic.topic_status === "Completed"
+                              className={`badge m-0 ${topic.topic_status === "Weak"
+                                ? "badge-weak"
+                                : topic.topic_status === "Completed"
                                   ? "badge-completed"
                                   : ""
-                              }`}
+                                }`}
                             >
                               {topic.topic_status}
                             </span>

@@ -137,9 +137,12 @@ def quiz_question():
             os.remove(temp_path)
             logging.info(f"🗑️ Deleted temporary file: {temp_path}")
 
-        if result and result.get("status") == "success":
-            return jsonify({"message": "Topics saved successfully."}), 200
+        if result:
+            return jsonify(result),200
         else:
-            return jsonify({"error": "Failed to process PDF."}), 500
+            return jsonify({
+                "status": "error",
+                "message": "Failed to process PDF."
+            }), 500
 
     return jsonify({"error": "Invalid file type."}), 400
