@@ -1,39 +1,45 @@
-# Use official Python image
+# ========================
+# Stage 1: Build frontend
+# ========================
+FROM node:20-bullseye AS frontend-builder
+
+# Set working directory
+WORKDIR /app/frontend
+
+# Copy frontend package files and install dependencies
+COPY frontend/package*.json ./
+RUN npm install
+
+# Copy full frontend code and build
+COPY frontend/ ./
+RUN npm run build
+
+# ========================
+# Stage 2: Build backend + final image
+# ========================
 FROM python:3.11-slim
 
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y curl build-essential
+# Install system dependencies for Python & Node tools if needed
+RUN apt-get update && apt-get install -y build-essential curl && rm -rf /var/lib/apt/lists/*
 
-# Install Node.js (for frontend build)
-RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
-    && apt-get install -y nodejs
-
-# Copy backend & ai-engine requirements
-COPY ai-engine/requirements.txt /app/
-
-# Install Python dependencies
+# Copy Python requirements and install
+COPY ai-engine/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt gunicorn
 
-# Copy backend and frontend
-COPY backend/ /app/backend/
-COPY frontend/ /app/frontend/
+# Copy backend code
+COPY backend/ ./backend/
 
-# Build React frontend
-WORKDIR /app/frontend
-RUN npm install && npm run build
-
-# Move build files into Flask static folder
-WORKDIR /app
-RUN mkdir -p /app/backend/static && cp -r /app/frontend/dist/* /app/backend/static/
+# Copy frontend build from previous stage
+COPY --from=frontend-builder /app/frontend/dist ./backend/static
 
 # Set working directory to backend
 WORKDIR /app/backend
 
-# Expose port
+# Expose backend port
 EXPOSE 5000
 
-# Start with Gunicorn
+# Start the Flask app with Gunicorn
 CMD ["gunicorn", "-b", "0.0.0.0:5000", "app:app"]

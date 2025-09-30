@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import Header from "../components/header";
+import Header from "../components/Header";
 import Footer from "../components/Footer";
 // import aivis from "../assets/ai-assistant.png";
 import RecalloVisual3D from "../components/RecalloVisual3D";
