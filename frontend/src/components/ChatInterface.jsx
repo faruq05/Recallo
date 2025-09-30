@@ -30,7 +30,7 @@ const ChatInterface = () => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(true);
   const [currentConv, setCurrentConv] = useState(null);
   const [conversations, setConversations] = useState([]);
-
+  
   useEffect(() => {
     const fetchUser = async () => {
       const { data, error } = await supabase.auth.getUser();

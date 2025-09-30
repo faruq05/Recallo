@@ -1,3 +1,20 @@
+from pathlib import Path
+from flask import send_from_directory
+
+BASE_DIR = Path(__file__).resolve().parent  # backend/
+FRONTEND_ROOT = BASE_DIR.parent / "frontend"
+POSSIBLE_BUILDS = [
+    FRONTEND_ROOT / "build",   # CRA
+    FRONTEND_ROOT / "dist",    # Vite
+]
+frontend_build = next((p for p in POSSIBLE_BUILDS if p.exists()), None)
+
+if frontend_build:
+    app = Flask(__name__, static_folder=str(frontend_build), static_url_path="/")
+else:
+    app = Flask(__name__)
+
+
 from flask import Flask
 from flask_cors import CORS
 import os
@@ -122,3 +139,14 @@ def health():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+    
+@app.route("/", defaults={"path": ""})
+@app.route("/<path:path>")
+def serve_frontend(path):
+    if frontend_build:
+        full = frontend_build / path
+        if path != "" and full.exists():
+            return send_from_directory(str(frontend_build), path)
+        else:
+            return send_from_directory(str(frontend_build), "index.html")
+    return {"status": "backend-only"}
